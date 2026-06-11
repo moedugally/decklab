@@ -64,16 +64,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ matches: [] });
     }
 
-    // Build a lookup so we can attach card data to each match
-    const cardLookup = Object.fromEntries(cards.map(c => [c.id, c]));
-
-    // Ask Claude to reason about which cards match
-    const matches = await askClaude(query, cards, apiKey);
-
-    // Attach normalized card data to each match for the frontend detail panel
-    const enriched = matches.map(m => ({
-      ...m,
-      card: normalizeCard(cardLookup[m.id])
+    // Return all vector results with normalized card data — no Claude filtering
+    const enriched = cards.map(c => ({
+      id: c.id,
+      name: c.name,
+      relevance: 'high',
+      card: normalizeCard(c)
     }));
 
     cacheSet(cacheKey, enriched);
@@ -126,7 +122,7 @@ async function vectorSearch(query, typeFilter) {
     },
     body: JSON.stringify({
       data: query,
-      topK: 40,
+      topK: 60,
       includeMetadata: true
     })
   });
