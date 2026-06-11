@@ -69,8 +69,9 @@ export default async function handler(req, res) {
     if (cached) {
       const filtered = await filterFlagged(query, cached);
       const pinned = await getPinned(query);
+      const filteredPinned = await filterFlagged(query, pinned.map(c => ({ ...c, id: c.id })));
       const existingIds = new Set(filtered.map(m => m.id));
-      for (const c of pinned) {
+      for (const c of filteredPinned) {
         if (!existingIds.has(c.id)) filtered.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
       }
       res.setHeader('X-Cache', 'HIT');
@@ -109,10 +110,11 @@ export default async function handler(req, res) {
       card: normalizeCard(c)
     }));
 
-    // Append any user-pinned cards for this query (submitted via "did we miss a card?")
+    // Append any user-pinned cards for this query, subject to the same feedback filter
     const pinned = await getPinned(query);
+    const filteredPinned = await filterFlagged(query, pinned);
     const existingIds = new Set(enriched.map(m => m.id));
-    for (const c of pinned) {
+    for (const c of filteredPinned) {
       if (!existingIds.has(c.id)) {
         enriched.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
       }
