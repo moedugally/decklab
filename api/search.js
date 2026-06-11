@@ -1,3 +1,6 @@
+// Update STANDARD_MARKS each May rotation (3 most recent regulation letters)
+const STANDARD_MARKS = ['H', 'I', 'J'];
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -62,7 +65,14 @@ async function fetchSmartCards(query, format, typeFilter) {
     }
   }));
 
-  return Array.from(cardMap.values()).slice(0, 60);
+  let results = Array.from(cardMap.values());
+
+  // Hard filter: for standard, only keep cards with a legal regulation mark
+  if (format === 'standard') {
+    results = results.filter(c => STANDARD_MARKS.includes(c.regulationMark));
+  }
+
+  return results.slice(0, 60);
 }
 
 function extractKeywords(query) {
@@ -105,7 +115,8 @@ function extractKeywords(query) {
 }
 
 function buildQueries(supertype, keywords, format, typeFilter) {
-  const legalFilter = format === 'standard' ? ' legalities.standard:legal' :
+  const markFilter = STANDARD_MARKS.map(m => `regulationMark:${m}`).join(' OR ');
+  const legalFilter = format === 'standard' ? ` (${markFilter})` :
                       format === 'expanded' ? ' legalities.expanded:legal' : '';
   const typeStr = typeFilter ? ` types:${typeFilter}` : '';
   const base = `supertype:${supertype}${typeStr}${legalFilter}`;
