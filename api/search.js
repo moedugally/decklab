@@ -1,6 +1,32 @@
 // Update STANDARD_MARKS each May rotation (3 most recent regulation letters)
 const STANDARD_MARKS = ['H', 'I', 'J'];
 
+const KV_URL = process.env.KV_REST_API_URL;
+const KV_TOKEN = process.env.KV_REST_API_TOKEN;
+const CACHE_TTL = 60 * 60 * 24 * 30; // 30 days
+
+async function cacheGet(key) {
+  if (!KV_URL || !KV_TOKEN) return null;
+  try {
+    const r = await fetch(`${KV_URL}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${KV_TOKEN}` }
+    });
+    const d = await r.json();
+    return d.result ? JSON.parse(d.result) : null;
+  } catch { return null; }
+}
+
+async function cacheSet(key, value) {
+  if (!KV_URL || !KV_TOKEN) return;
+  try {
+    await fetch(`${KV_URL}/set/${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(value), ex: CACHE_TTL })
+    });
+  } catch { /* non-fatal */ }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -17,7 +43,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'API key not configured' });
   }
 
+  const cacheKey = `search:${format}:${(req.body.type || '').toLowerCase()}:${query.trim().toLowerCase()}`;
+
   try {
+    // Check cache first
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.status(200).json({ matches: cached });
+    }
+
     // Step 1: Smart card fetching based on query intent
     const cards = await fetchSmartCards(query, format, req.body.type || '');
 
@@ -27,8 +62,12 @@ export default async function handler(req, res) {
 
     // Step 2: Ask Claude to reason about which cards match
     const matches = await askClaude(query, cards, format, apiKey);
-    
+
+    // Store in cache (fire and forget)
+    cacheSet(cacheKey, matches);
+
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
+    res.setHeader('X-Cache', 'MISS');
     return res.status(200).json({ matches });
 
   } catch (err) {
@@ -50,9 +89,9 @@ async function fetchSmartCards(query, format, typeFilter) {
 
   // Build multiple targeted queries and merge results
   const queries = buildQueries(supertype, keywords, format, typeFilter);
-  
+
   const cardMap = new Map();
-  
+
   await Promise.all(queries.map(async (q) => {
     try {
       const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=30`;
@@ -76,7 +115,6 @@ async function fetchSmartCards(query, format, typeFilter) {
 }
 
 function extractKeywords(query) {
-  // Map natural language concepts to card text keywords
   const conceptMap = [
     { concepts: ['accelerat', 'attach.*energy', 'energy.*attach'], keywords: ['attach', 'energy'] },
     { concepts: ['fire energy', 'fire.*accelerat'], keywords: ['Fire Energy', 'attach'] },
@@ -105,7 +143,6 @@ function extractKeywords(query) {
     }
   }
 
-  // Also extract energy types mentioned
   const types = ['Fire','Water','Grass','Lightning','Psychic','Fighting','Darkness','Metal','Dragon','Fairy','Colorless'];
   for (const t of types) {
     if (query.includes(t.toLowerCase())) matched.push(t);
@@ -120,38 +157,28 @@ function buildQueries(supertype, keywords, format, typeFilter) {
                       format === 'expanded' ? ' legalities.expanded:legal' : '';
   const typeStr = typeFilter ? ` types:${typeFilter}` : '';
   const base = `supertype:${supertype}${typeStr}${legalFilter}`;
-  
+
   const queries = [];
 
-  // Query 1: Search abilities text
   if (keywords.length > 0) {
-    const kw = keywords[0];
-    queries.push(`${base} abilities.text:"${kw}"`);
+    queries.push(`${base} abilities.text:"${keywords[0]}"`);
+    queries.push(`${base} attacks.text:"${keywords[0]}"`);
   }
 
-  // Query 2: Search attacks text  
-  if (keywords.length > 0) {
-    const kw = keywords[0];
-    queries.push(`${base} attacks.text:"${kw}"`);
-  }
-
-  // Query 3: Search with second keyword if available
   if (keywords.length > 1) {
     queries.push(`${base} abilities.text:"${keywords[1]}"`);
     queries.push(`${base} attacks.text:"${keywords[1]}"`);
   }
 
-  // Query 4: Rules text (for trainers/special rules)
   if (keywords.length > 0) {
     queries.push(`${base} rules:"${keywords[0]}"`);
   }
 
-  // Fallback: broad supertype query if no keywords matched
   if (queries.length === 0) {
     queries.push(`${base}&pageSize=40`);
   }
 
-  return queries.slice(0, 5); // max 5 parallel queries
+  return queries.slice(0, 5);
 }
 
 async function askClaude(query, cards, format, apiKey) {
