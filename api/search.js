@@ -67,8 +67,9 @@ export default async function handler(req, res) {
   try {
     const cached = await cacheGet(cacheKey);
     if (cached) {
+      const filtered = await filterFlagged(query, cached);
       res.setHeader('X-Cache', 'HIT');
-      return res.status(200).json({ matches: cached });
+      return res.status(200).json({ matches: filtered });
     }
 
     // Expand TCG slang before querying vector index
