@@ -64,8 +64,20 @@ export default async function handler(req, res) {
       return res.status(200).json({ matches: [] });
     }
 
-    // Return all vector results with normalized card data — no Claude filtering
-    const enriched = cards.map(c => ({
+    // Dedupe: Pokémon by name+set (same name in different sets = different card),
+    // Trainers/Energy by name only (reprints are functionally identical)
+    const seen = new Set();
+    const deduped = cards.filter(c => {
+      const key = c.supertype === 'Pokémon' ? `${c.name}|${c.setName}` : c.name;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Filter out cards with enough negative feedback for this query
+    const filtered = await filterFlagged(query, deduped);
+
+    const enriched = filtered.map(c => ({
       id: c.id,
       name: c.name,
       relevance: 'high',
@@ -106,6 +118,26 @@ function normalizeCard(c) {
       large: c.imageLarge || c.images?.large || ''
     }
   };
+}
+
+const NEGATIVE_THRESHOLD = 3;
+
+async function filterFlagged(query, cards) {
+  if (!KV_URL || !KV_TOKEN || !cards.length) return cards;
+  try {
+    const keys = cards.map(c => `feedback:${query.trim().toLowerCase()}:${c.id}:negative`);
+    const pipeline = keys.map(k => ['GET', k]);
+    const r = await fetch(`${KV_URL}/pipeline`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(pipeline)
+    });
+    const results = await r.json();
+    return cards.filter((_, i) => {
+      const count = parseInt(results[i]?.result || '0', 10);
+      return count < NEGATIVE_THRESHOLD;
+    });
+  } catch { return cards; }
 }
 
 async function vectorSearch(query, typeFilter) {

@@ -80,6 +80,7 @@ function cardToVector(c) {
       attacks: c.attacks || [],
       rules: c.rules || [],
       setName: c.set?.name || '',
+      rarity: c.rarity || '',
       regulationMark: c.regulationMark || '',
       imageSmall: c.images?.small || '',
       imageLarge: c.images?.large || '',

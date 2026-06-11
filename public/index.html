@@ -134,7 +134,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 .empty-app strong{font-family:'Space Grotesk',sans-serif;font-size:15px;color:var(--text2);font-weight:500}
 .empty-app p{font-size:13px;max-width:260px;line-height:1.6}
 
-.detail-col{width:300px;flex-shrink:0;border-left:0.5px solid var(--line);display:none;flex-direction:column;overflow-y:auto;background:var(--s1)}
+.detail-col{width:420px;flex-shrink:0;border-left:0.5px solid var(--line);display:none;flex-direction:column;overflow-y:auto;background:var(--s1)}
 .detail-col.open{display:flex}
 .dh{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0}
 .dc-close{width:28px;height:28px;border-radius:7px;border:0.5px solid var(--line2);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:15px;transition:all 0.15s}
@@ -170,6 +170,16 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 .atk .ak-cost{font-size:9px;color:var(--text3);margin-bottom:4px}
 .atk .ak-text{font-size:11px;color:var(--text2);line-height:1.55}
 .err-bar{margin:0 24px 8px;background:var(--red-glow);border:0.5px solid rgba(232,37,58,0.3);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--red2)}
+.fb-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;background:rgba(20,20,24,0.85);border:0.5px solid rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:13px;opacity:0;transition:opacity 0.15s;z-index:2}
+.ct:hover .fb-btn{opacity:1}
+.fb-btn:hover{background:var(--s3);color:var(--text)}
+.fb-menu{position:absolute;top:32px;right:6px;background:var(--s1);border:0.5px solid var(--line2);border-radius:10px;padding:4px;width:200px;z-index:10;display:none}
+.fb-menu.open{display:block}
+.fb-opt{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;font-size:12px;color:var(--text2);cursor:pointer;background:none;border:none;width:100%;text-align:left}
+.fb-opt:hover{background:var(--s2);color:var(--text)}
+.fb-opt i{font-size:14px;flex-shrink:0}
+.fb-opt.good i{color:#22C55E}
+.fb-opt.bad i{color:var(--red2)}
 </style>
 </head>
 <body>
@@ -184,6 +194,9 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
       </button>
       <div class="dropdown" id="nav-dropdown">
         <a class="dd-item" href="#"><i class="ti ti-map-2"></i>Roadmap</a>
+        <a class="dd-item" href="mailto:hello@decklab.gg?subject=Feature%20Request"><i class="ti ti-bulb"></i>Request a feature</a>
+        <a class="dd-item" href="mailto:hello@decklab.gg?subject=Bug%20Report"><i class="ti ti-bug"></i>Report a bug</a>
+        <div class="dd-sep"></div>
         <a class="dd-item" href="mailto:hello@decklab.gg"><i class="ti ti-mail"></i>Contact</a>
       </div>
     </div>
@@ -336,8 +349,8 @@ function openDetail(id){
   const c=cardMap[id],m=matchMap[id];if(!c) return;
   document.querySelectorAll('.ct').forEach(t=>t.classList.remove('active'));
   document.querySelector(`[data-id="${id}"]`)?.classList.add('active');
-  const legal=(fmt==='standard'?c.legalities?.standard:fmt==='expanded'?c.legalities?.expanded:'legal')==='legal';
-  const fmtLabel=fmt==='standard'?'Standard':fmt==='expanded'?'Expanded':'Unlimited';
+  const legal=true; // all results are pre-filtered to standard legal marks
+  const fmtLabel='Standard';
   let h=`<div class="di-wrap">${c.images?.large?`<img src="${c.images.large}" alt="${c.name}" />`:`<div class="no-img"><i class="ti ti-ghost"></i></div>`}</div>`;
   h+=`<div class="db"><div class="dn">${c.name}</div><div class="ds">${c.set?.name||''} · ${c.number||''} · ${(c.subtypes||[]).join(', ')||c.supertype}</div>`;
   if(m?.reason) h+=`<div class="match-callout"><div class="mc-label">Why it matches</div><div class="mc-text">${m.reason}</div></div>`;
@@ -366,14 +379,19 @@ async function runSearch(){
     const matches=await askClaude(q,[]);
     matchMap={};matches.forEach(m=>{matchMap[m.id]=m});
     if(!matches.length){document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-mood-empty"></i><strong>No matches found</strong><p>Try rephrasing your search.</p></div>`;appStatus('');btn.disabled=false;return}
-    const hi=matches.filter(m=>m.relevance==='high').length;
-    appStatus(`<span class="cnt">${matches.length} cards found</span> <span style="color:var(--text3)">${hi} strong match${hi!==1?'es':''} · click any card for details</span>`);
+    appStatus(`<span class="cnt">${matches.length} cards found</span> <span style="color:var(--text3)">click any card for details</span>`);
     const grid=document.createElement('div');grid.className='card-grid';
     matches.forEach(m=>{
       const c=cardMap[m.id];if(!c) return;
-      const tile=document.createElement('div');tile.className='ct';tile.dataset.id=m.id;tile.setAttribute('role','button');tile.setAttribute('aria-label',c.name);tile.onclick=()=>openDetail(m.id);
-      const pc=m.relevance==='high'?'h':m.relevance==='medium'?'m':'l';
-      tile.innerHTML=`<div class="rp ${pc}"></div>${c.images?.small?`<img src="${c.images.small}" alt="${c.name}" loading="lazy" />`:`<div style="height:90px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text3)"><i class="ti ti-ghost"></i></div>`}<div class="cf"><div class="cn">${c.name}</div><div class="cs">${c.set?.name||''}</div></div>`;
+      const tile=document.createElement('div');tile.className='ct';tile.dataset.id=m.id;tile.setAttribute('aria-label',c.name);
+      tile.innerHTML=`
+        <button class="fb-btn" aria-label="Card feedback" onclick="toggleFbMenu(event,'${m.id}')"><i class="ti ti-dots"></i></button>
+        <div class="fb-menu" id="fbm-${m.id}">
+          <button class="fb-opt good" onclick="sendFeedback(event,'${m.id}','positive')"><i class="ti ti-thumb-up"></i>Great match</button>
+          <button class="fb-opt bad" onclick="sendFeedback(event,'${m.id}','negative')"><i class="ti ti-thumb-down"></i>Doesn't meet criteria</button>
+        </div>
+        ${c.images?.small?`<img src="${c.images.small}" alt="${c.name}" loading="lazy" style="cursor:pointer" onclick="openDetail('${m.id}')" />`:`<div style="height:90px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text3);cursor:pointer" onclick="openDetail('${m.id}')"><i class="ti ti-ghost"></i></div>`}
+        <div class="cf" style="cursor:pointer" onclick="openDetail('${m.id}')"><div class="cn">${c.name}</div><div class="cs">${c.set?.name||''}</div></div>`;
       grid.appendChild(tile);
     });
     document.getElementById('results-col').innerHTML='';
@@ -382,6 +400,28 @@ async function runSearch(){
   btn.disabled=false;
 }
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch()});
+
+let lastQuery='';
+function toggleFbMenu(e,id){
+  e.stopPropagation();
+  const menu=document.getElementById('fbm-'+id);
+  const isOpen=menu.classList.contains('open');
+  document.querySelectorAll('.fb-menu.open').forEach(m=>m.classList.remove('open'));
+  if(!isOpen) menu.classList.add('open');
+}
+document.addEventListener('click',()=>document.querySelectorAll('.fb-menu.open').forEach(m=>m.classList.remove('open')));
+
+async function sendFeedback(e,cardId,type){
+  e.stopPropagation();
+  document.querySelectorAll('.fb-menu.open').forEach(m=>m.classList.remove('open'));
+  const btn=e.currentTarget;
+  btn.textContent=type==='positive'?'Thanks! 👍':'Got it, thanks!';
+  btn.disabled=true;
+  try{
+    await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query:document.getElementById('q').value.trim(),cardId,type})});
+  }catch(e){ /* non-fatal */ }
+}
 
 const demoCards=[
   {name:'Blaziken ex',set:'Journey Together',why:'Seething Spirit: attach a Basic Energy from discard pile to any Pokémon once per turn',img:'https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpci/JTG/JTG_024_R_EN_SM.png',hot:false},
