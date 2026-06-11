@@ -1,6 +1,20 @@
 // Update STANDARD_MARKS each May rotation (3 most recent regulation letters)
 const STANDARD_MARKS = ['H', 'I', 'J'];
 
+// TCG slang → descriptive query expansion for vector search
+const TCG_SLANG = {
+  'gust': 'switch opponent active pokemon with benched pokemon boss orders',
+  'gust effect': 'switch opponent active pokemon with benched pokemon boss orders',
+  'pivot': 'switch your active pokemon with benched pokemon free retreat cost zero',
+  'wall': 'reduce damage taken prevent damage defender ability',
+  'snipe': 'damage benched pokemon directly',
+  'mill': 'discard cards from opponent deck',
+  'draw supporter': 'draw cards from deck supporter',
+  'nuke': 'high damage attack knock out',
+  'accelerate': 'attach energy from discard pile hand',
+  'reborn': 'revive pokemon from discard pile',
+};
+
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const VECTOR_URL = process.env.UPSTASH_VECTOR_REST_URL;
@@ -57,8 +71,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ matches: cached });
     }
 
+    // Expand TCG slang before querying vector index
+    const lq = query.trim().toLowerCase();
+    const expandedQuery = TCG_SLANG[lq] ? `${query} ${TCG_SLANG[lq]}` : query;
+
     // Fetch candidate cards from vector index
-    const cards = await vectorSearch(query, typeFilter);
+    const cards = await vectorSearch(expandedQuery, typeFilter);
 
     if (!cards.length) {
       return res.status(200).json({ matches: [] });
