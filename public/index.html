@@ -437,8 +437,10 @@ function openMissForm(query){
   tile.innerHTML=`
     <div class="miss-label">Missing a card?</div>
     <input class="miss-input" id="miss-input" type="text" placeholder="Card name…" />
-    <button class="miss-submit" onclick="submitMissed('${query.replace(/'/g,"\\'")}')">Submit</button>
-    <button class="miss-cancel" onclick="closeMissForm()">Cancel</button>`;
+    <button class="miss-submit" id="miss-submit-btn" type="button">Submit</button>
+    <button class="miss-cancel" id="miss-cancel-btn" type="button">Cancel</button>`;
+  document.getElementById('miss-submit-btn').addEventListener('click', (e)=>{e.stopPropagation();submitMissed(query);});
+  document.getElementById('miss-cancel-btn').addEventListener('click', (e)=>{e.stopPropagation();closeMissForm();});
   setTimeout(()=>document.getElementById('miss-input')?.focus(),50);
 }
 
