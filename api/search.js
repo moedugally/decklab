@@ -46,7 +46,7 @@ async function fetchSmartCards(query, format, typeFilter) {
   const keywords = extractKeywords(lq);
 
   // Build multiple targeted queries and merge results
-  const queries = buildQueries(supertype, keywords, format);
+  const queries = buildQueries(supertype, keywords, format, typeFilter);
   
   const cardMap = new Map();
   
@@ -104,8 +104,8 @@ function extractKeywords(query) {
   return [...new Set(matched)];
 }
 
-function buildQueries(supertype, keywords, format) {
-  const legalFilter = format === 'standard' ? ' legalities.standard:legal' : 
+function buildQueries(supertype, keywords, format, typeFilter) {
+  const legalFilter = format === 'standard' ? ' legalities.standard:legal' :
                       format === 'expanded' ? ' legalities.expanded:legal' : '';
   const typeStr = typeFilter ? ` types:${typeFilter}` : '';
   const base = `supertype:${supertype}${typeStr}${legalFilter}`;
@@ -176,7 +176,7 @@ ${JSON.stringify(sums, null, 1)}`;
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }]
     })
