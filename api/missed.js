@@ -5,21 +5,29 @@ const STANDARD_MARKS = ['H', 'I', 'J'];
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { query, cardName } = req.body;
-  if (!query || !cardName) return res.status(400).json({ error: 'Invalid payload' });
+  const { query, cardName, cardId } = req.body;
+  if (!query || (!cardName && !cardId)) return res.status(400).json({ error: 'Invalid payload' });
 
   if (!KV_URL || !KV_TOKEN) return res.status(200).json({ ok: true });
 
   try {
-    // Look up the card in the Pokemon TCG API
-    const markFilter = STANDARD_MARKS.map(m => `regulationMark:${m}`).join(' OR ');
-    const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`name:"${cardName}" (${markFilter})`)}&pageSize=5&orderBy=-set.releaseDate`;
-    const r = await fetch(url);
-    const data = await r.json();
-    const card = (data.data || [])[0];
+    // If a specific cardId was provided, fetch it directly; otherwise search by name
+    let card;
+    if (cardId) {
+      const r = await fetch(`https://api.pokemontcg.io/v2/cards/${encodeURIComponent(cardId)}`);
+      const data = await r.json();
+      card = data.data && STANDARD_MARKS.includes(data.data.regulationMark) ? data.data : null;
+    } else {
+      const markFilter = STANDARD_MARKS.map(m => `regulationMark:${m}`).join(' OR ');
+      const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`name:"${cardName}" (${markFilter})`)}&pageSize=5&orderBy=-set.releaseDate`;
+      const r = await fetch(url);
+      const data = await r.json();
+      card = (data.data || [])[0];
+    }
 
     // Record the submission regardless of whether we found the card
-    const missedKey = `missed:${query.trim().toLowerCase()}:${cardName.trim().toLowerCase()}`;
+    const nameKey = (cardName || cardId || '').trim().toLowerCase();
+    const missedKey = `missed:${query.trim().toLowerCase()}:${nameKey}`;
     const pipeline = [['INCR', missedKey]];
 
     if (card && STANDARD_MARKS.includes(card.regulationMark)) {

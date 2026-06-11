@@ -182,6 +182,11 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 .miss-submit:hover{opacity:0.85}
 .miss-cancel{background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;font-family:'Inter',sans-serif;text-align:center}
 .miss-cancel:hover{color:var(--text2)}
+.miss-set-opt{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;border:1px solid var(--line2);background:var(--s1);cursor:pointer;transition:all 0.12s}
+.miss-set-opt:hover{border-color:var(--red)}
+.miss-set-opt.selected{border-color:var(--red);background:var(--red-glow)}
+.miss-set-name{font-size:11px;color:var(--text);font-family:'Inter',sans-serif}
+.miss-submit:disabled{opacity:0.4;cursor:default}
 .fb-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;background:rgba(20,20,24,0.85);border:0.5px solid rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:13px;opacity:0;transition:opacity 0.15s;z-index:2}
 .ct:hover .fb-btn{opacity:1}
 .fb-btn:hover{background:var(--s3);color:var(--text)}
@@ -437,10 +442,11 @@ function openMissForm(query){
   tile.innerHTML=`
     <div class="miss-label">Missing a card?</div>
     <input class="miss-input" id="miss-input" type="text" placeholder="Card name…" />
-    <button class="miss-submit" id="miss-submit-btn" type="button">Submit</button>
+    <button class="miss-submit" id="miss-submit-btn" type="button">Find Card</button>
     <button class="miss-cancel" id="miss-cancel-btn" type="button">Cancel</button>`;
-  document.getElementById('miss-submit-btn').addEventListener('click', (e)=>{e.stopPropagation();submitMissed(query);});
+  document.getElementById('miss-submit-btn').addEventListener('click', (e)=>{e.stopPropagation();lookupMissedCard(query);});
   document.getElementById('miss-cancel-btn').addEventListener('click', (e)=>{e.stopPropagation();closeMissForm();});
+  document.getElementById('miss-input').addEventListener('keydown', (e)=>{if(e.key==='Enter'){e.stopPropagation();lookupMissedCard(query);}});
   setTimeout(()=>document.getElementById('miss-input')?.focus(),50);
 }
 
@@ -452,15 +458,70 @@ function closeMissForm(){
   tile.innerHTML=`<i class="ti ti-plus" aria-hidden="true"></i><span>Did we miss<br>a card?</span>`;
 }
 
-async function submitMissed(query){
+async function lookupMissedCard(query){
   const input=document.getElementById('miss-input');
   const cardName=input?.value.trim();
   if(!cardName) return;
+  const btn=document.getElementById('miss-submit-btn');
+  if(btn){btn.textContent='Looking…';btn.disabled=true;}
+  try{
+    const r=await fetch('/api/lookup-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cardName})});
+    const d=await r.json();
+    const cards=d.cards||[];
+    if(cards.length===0){
+      const tile=document.getElementById('miss-tile');
+      if(tile) tile.innerHTML=`<div class="miss-label" style="color:var(--red2)">Card not found</div><div style="font-size:11px;color:var(--text3);margin:4px 0 8px">Make sure it's Standard legal (marks H–J)</div><button class="miss-submit" id="miss-retry-btn" type="button">Try again</button><button class="miss-cancel" id="miss-cancel-btn2" type="button">Cancel</button>`;
+      document.getElementById('miss-retry-btn')?.addEventListener('click',(e)=>{e.stopPropagation();openMissForm(query);});
+      document.getElementById('miss-cancel-btn2')?.addEventListener('click',(e)=>{e.stopPropagation();closeMissForm();});
+    } else if(cards.length===1){
+      await submitMissed(query,cards[0].id,cards[0].name);
+    } else {
+      showSetPicker(query,cards,cardName);
+    }
+  }catch(e){
+    if(btn){btn.textContent='Find Card';btn.disabled=false;}
+  }
+}
+
+function showSetPicker(query,cards,cardName){
   const tile=document.getElementById('miss-tile');
-  if(tile) tile.innerHTML=`<i class="ti ti-check" aria-hidden="true"></i><span>Thanks!<br>We'll look into it.</span>`;
+  if(!tile) return;
+  const opts=cards.map(c=>`
+    <label class="miss-set-opt" data-id="${c.id}">
+      <input type="radio" name="miss-set" value="${c.id}" style="display:none">
+      <span class="miss-set-name">${c.setName} <span style="color:var(--text3)">#${c.number}</span></span>
+    </label>`).join('');
+  tile.innerHTML=`
+    <div class="miss-label">Which version?</div>
+    <div id="miss-set-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:120px">${opts}</div>
+    <button class="miss-submit" id="miss-confirm-btn" type="button" disabled>Add this card</button>
+    <button class="miss-cancel" id="miss-cancel-btn3" type="button">Cancel</button>`;
+  let selectedId=null;
+  tile.querySelectorAll('.miss-set-opt').forEach(opt=>{
+    opt.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      tile.querySelectorAll('.miss-set-opt').forEach(o=>o.classList.remove('selected'));
+      opt.classList.add('selected');
+      selectedId=opt.dataset.id;
+      const confirmBtn=document.getElementById('miss-confirm-btn');
+      if(confirmBtn) confirmBtn.disabled=false;
+    });
+  });
+  document.getElementById('miss-confirm-btn').addEventListener('click',async(e)=>{
+    e.stopPropagation();
+    if(!selectedId) return;
+    const chosen=cards.find(c=>c.id===selectedId);
+    await submitMissed(query,selectedId,chosen?.name||cardName);
+  });
+  document.getElementById('miss-cancel-btn3').addEventListener('click',(e)=>{e.stopPropagation();closeMissForm();});
+}
+
+async function submitMissed(query,cardId,cardName){
+  const tile=document.getElementById('miss-tile');
+  if(tile) tile.innerHTML=`<i class="ti ti-check" aria-hidden="true"></i><span>Thanks!<br>We'll add it.</span>`;
   try{
     await fetch('/api/missed',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({query,cardName})});
+      body:JSON.stringify({query,cardId,cardName})});
   }catch(e){ /* non-fatal */ }
 }
 
