@@ -62,7 +62,7 @@ export default async function handler(req, res) {
   }
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v2:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v3:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   try {
     const cached = await cacheGet(cacheKey);
@@ -199,7 +199,7 @@ async function vectorSearch(query, typeFilter) {
     },
     body: JSON.stringify({
       data: query,
-      topK: 60,
+      topK: 100,
       includeMetadata: true
     })
   });
