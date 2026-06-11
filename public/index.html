@@ -235,9 +235,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
   <div class="app-nav">
     <button class="app-wordmark" onclick="goToLanding()">Deck<em>lab</em></button>
     <div class="fmt-group">
-      <button class="fmt-btn on" onclick="setFmt(this,'standard')">Standard</button>
-      <button class="fmt-btn" onclick="setFmt(this,'expanded')">Expanded</button>
-      <button class="fmt-btn" onclick="setFmt(this,'any')">Any</button>
+      <button class="fmt-btn on" style="cursor:default">Standard</button>
     </div>
   </div>
   <div class="app-hero">
@@ -293,7 +291,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 </div>
 
 <script>
-let fmt='standard',type='',cardMap={},matchMap={};
+const fmt='standard';
+let type='',cardMap={},matchMap={};
 
 function goToApp(){
   document.getElementById('landing').classList.add('hidden-up');
@@ -304,7 +303,6 @@ function goToLanding(){
   document.getElementById('app').classList.add('hidden-down');
   document.getElementById('landing').classList.remove('hidden-up');
 }
-function setFmt(el,f){fmt=f;document.querySelectorAll('.fmt-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on')}
 function setType(el,t){type=t;document.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));el.classList.add('on')}
 function useSugg(el){document.getElementById('q').value=el.textContent;runSearch()}
 function appStatus(msg,loading){const el=document.getElementById('app-status');el.innerHTML=loading?`<div class="spin"></div><span>${msg}</span>`:msg}
@@ -320,11 +318,13 @@ async function askClaude(q,_cards){
   const r=await fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,format:fmt,type:type})});
   if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error('Search error: '+(e.error||r.status))}
   const d=await r.json();
-  // After getting matches, fetch full card data from Pokemon TCG API for detail panel
-  const ids=d.matches.map(m=>m.id);
-  if(ids.length){
+  // Card metadata is embedded in match results from the vector index
+  d.matches.forEach(m=>{if(m.card) cardMap[m.id]=m.card});
+  // Fallback: fetch from Pokemon TCG API for any cards missing metadata
+  const missing=d.matches.filter(m=>!cardMap[m.id]).map(m=>m.id);
+  if(missing.length){
     try{
-      const cardRes=await fetch(`https://api.pokemontcg.io/v2/cards?q=id:${ids.join(' OR id:')}&pageSize=20`);
+      const cardRes=await fetch(`https://api.pokemontcg.io/v2/cards?q=id:${missing.join(' OR id:')}&pageSize=20`);
       const cardData=await cardRes.json();
       (cardData.data||[]).forEach(c=>{cardMap[c.id]=c});
     }catch(e){console.warn('Card detail fetch failed',e)}

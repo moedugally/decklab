@@ -3,6 +3,8 @@ const STANDARD_MARKS = ['H', 'I', 'J'];
 
 const KV_URL = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
+const VECTOR_URL = process.env.UPSTASH_VECTOR_REST_URL;
+const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
 const CACHE_TTL = 60 * 60 * 24 * 30; // 30 days
 
 async function cacheGet(key) {
@@ -32,7 +34,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { query, format } = req.body;
+  const { query, format = 'standard' } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Missing query' });
@@ -43,32 +45,40 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'API key not configured' });
   }
 
-  const cacheKey = `search:${format}:${(req.body.type || '').toLowerCase()}:${query.trim().toLowerCase()}`;
+  const typeFilter = req.body.type || '';
+  const cacheKey = `search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   try {
-    // Check cache first
     const cached = await cacheGet(cacheKey);
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
       return res.status(200).json({ matches: cached });
     }
 
-    // Step 1: Smart card fetching based on query intent
-    const cards = await fetchSmartCards(query, format, req.body.type || '');
+    // Fetch candidate cards from vector index
+    const cards = await vectorSearch(query, typeFilter);
 
     if (!cards.length) {
       return res.status(200).json({ matches: [] });
     }
 
-    // Step 2: Ask Claude to reason about which cards match
-    const matches = await askClaude(query, cards, format, apiKey);
+    // Build a lookup so we can attach card data to each match
+    const cardLookup = Object.fromEntries(cards.map(c => [c.id, c]));
 
-    // Store in cache (fire and forget)
-    cacheSet(cacheKey, matches);
+    // Ask Claude to reason about which cards match
+    const matches = await askClaude(query, cards, apiKey);
+
+    // Attach normalized card data to each match for the frontend detail panel
+    const enriched = matches.map(m => ({
+      ...m,
+      card: normalizeCard(cardLookup[m.id])
+    }));
+
+    cacheSet(cacheKey, enriched);
 
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
     res.setHeader('X-Cache', 'MISS');
-    return res.status(200).json({ matches });
+    return res.status(200).json({ matches: enriched });
 
   } catch (err) {
     console.error(err);
@@ -76,46 +86,99 @@ export default async function handler(req, res) {
   }
 }
 
-async function fetchSmartCards(query, format, typeFilter) {
-  const lq = query.toLowerCase();
+function normalizeCard(c) {
+  if (!c) return null;
+  return {
+    id: c.id,
+    name: c.name,
+    supertype: c.supertype,
+    subtypes: c.subtypes || [],
+    types: c.types || [],
+    abilities: c.abilities || [],
+    attacks: c.attacks || [],
+    rules: c.rules || [],
+    hp: c.hp || '',
+    number: c.number || '',
+    weaknesses: c.weaknesses || [],
+    retreatCost: c.retreatCost || [],
+    legalities: c.legalities || {},
+    set: { name: c.setName || c.set?.name || '' },
+    images: {
+      small: c.imageSmall || c.images?.small || '',
+      large: c.imageLarge || c.images?.large || ''
+    }
+  };
+}
 
-  // Determine which supertypes to search
-  let supertypes;
-  if (/\benergy card\b/.test(lq)) {
-    supertypes = ['energy'];
-  } else if (/\b(trainer|supporter|item|stadium|tool)\b/.test(lq)) {
-    supertypes = ['trainer'];
-  } else {
-    // Search both pokemon and trainer by default — many queries (draw, search deck, heal)
-    // are best answered by trainers even when the user doesn't say "trainer"
-    supertypes = ['pokemon', 'trainer'];
+async function vectorSearch(query, typeFilter) {
+  if (!VECTOR_URL || !VECTOR_TOKEN) {
+    // Fallback to keyword search if vector index not configured
+    return keywordSearch(query, typeFilter);
   }
+
+  const r = await fetch(`${VECTOR_URL}/query-data`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${VECTOR_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      data: query,
+      topK: 40,
+      includeMetadata: true
+    })
+  });
+
+  if (!r.ok) {
+    console.error('Vector search failed, falling back to keyword search');
+    return keywordSearch(query, typeFilter);
+  }
+
+  const data = await r.json();
+  let results = (data.result || []).map(r => r.metadata).filter(Boolean);
+
+  // Filter by type if specified
+  if (typeFilter) {
+    results = results.filter(c => (c.types || []).includes(typeFilter));
+  }
+
+  // Safety: ensure all returned cards are standard legal
+  results = results.filter(c => STANDARD_MARKS.includes(c.regulationMark));
+
+  return results;
+}
+
+// Fallback keyword search (used if vector index not yet set up)
+async function keywordSearch(query, typeFilter) {
+  const lq = query.toLowerCase();
+  let supertypes = ['pokemon', 'trainer'];
+  if (/\benergy card\b/.test(lq)) supertypes = ['energy'];
+  else if (/\b(trainer|supporter|item|stadium|tool)\b/.test(lq)) supertypes = ['trainer'];
 
   const keywords = extractKeywords(lq);
   const cardMap = new Map();
 
   await Promise.all(supertypes.flatMap(supertype => {
-    const queries = buildQueries(supertype, keywords, format, typeFilter);
+    const queries = buildQueries(supertype, keywords, typeFilter);
     return queries.map(async (q) => {
       try {
         const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=30`;
         const r = await fetch(url);
         if (!r.ok) return;
         const data = await r.json();
-        (data.data || []).forEach(c => cardMap.set(c.id, c));
-      } catch(e) {
-        // silently skip failed sub-queries
-      }
+        (data.data || []).forEach(c => cardMap.set(c.id, {
+          id: c.id, name: c.name, supertype: c.supertype, subtypes: c.subtypes || [],
+          types: c.types || [], abilities: c.abilities || [], attacks: c.attacks || [],
+          rules: c.rules || [], setName: c.set?.name || '', regulationMark: c.regulationMark || '',
+          imageSmall: c.images?.small || '', imageLarge: c.images?.large || '',
+          number: c.number || '', hp: c.hp || '', weaknesses: c.weaknesses || [],
+          retreatCost: c.retreatCost || [], legalities: c.legalities || {}
+        }));
+      } catch(e) { /* skip */ }
     });
   }));
 
-  let results = Array.from(cardMap.values());
-
-  // Hard filter: for standard, only keep cards with a legal regulation mark
-  if (format === 'standard') {
-    results = results.filter(c => STANDARD_MARKS.includes(c.regulationMark));
-  }
-
+  let results = Array.from(cardMap.values()).filter(c => STANDARD_MARKS.includes(c.regulationMark));
   return results.slice(0, 60);
 }
 
@@ -143,9 +206,7 @@ function extractKeywords(query) {
 
   const matched = [];
   for (const { concepts, keywords } of conceptMap) {
-    if (concepts.some(c => new RegExp(c).test(query))) {
-      matched.push(...keywords);
-    }
+    if (concepts.some(c => new RegExp(c).test(query))) matched.push(...keywords);
   }
 
   const types = ['Fire','Water','Grass','Lightning','Psychic','Fighting','Darkness','Metal','Dragon','Fairy','Colorless'];
@@ -156,37 +217,28 @@ function extractKeywords(query) {
   return [...new Set(matched)];
 }
 
-function buildQueries(supertype, keywords, format, typeFilter) {
+function buildQueries(supertype, keywords, typeFilter) {
   const markFilter = STANDARD_MARKS.map(m => `regulationMark:${m}`).join(' OR ');
-  const legalFilter = format === 'standard' ? ` (${markFilter})` :
-                      format === 'expanded' ? ' legalities.expanded:legal' : '';
+  const legalFilter = ` (${markFilter})`;
   const typeStr = typeFilter ? ` types:${typeFilter}` : '';
   const base = `supertype:${supertype}${typeStr}${legalFilter}`;
-
   const queries = [];
 
   if (keywords.length > 0) {
     queries.push(`${base} abilities.text:"${keywords[0]}"`);
     queries.push(`${base} attacks.text:"${keywords[0]}"`);
   }
-
   if (keywords.length > 1) {
     queries.push(`${base} abilities.text:"${keywords[1]}"`);
     queries.push(`${base} attacks.text:"${keywords[1]}"`);
   }
-
-  if (keywords.length > 0) {
-    queries.push(`${base} rules:"${keywords[0]}"`);
-  }
-
-  if (queries.length === 0) {
-    queries.push(`${base}&pageSize=40`);
-  }
+  if (keywords.length > 0) queries.push(`${base} rules:"${keywords[0]}"`);
+  if (queries.length === 0) queries.push(base);
 
   return queries.slice(0, 5);
 }
 
-async function askClaude(query, cards, format, apiKey) {
+async function askClaude(query, cards, apiKey) {
   const sums = cards.map(c => ({
     id: c.id,
     name: c.name,
@@ -194,14 +246,12 @@ async function askClaude(query, cards, format, apiKey) {
     subtypes: c.subtypes,
     types: c.types,
     abilities: (c.abilities || []).map(a => `[${a.type}] ${a.name}: ${a.text}`),
-    attacks: (c.attacks || []).map(a => `${a.name}(${a.damage || '–'}): ${a.text || ''}`),
+    attacks: (c.attacks || []).map(a => `${a.name}${a.damage ? '(' + a.damage + ')' : ''}: ${a.text || ''}`),
     rules: c.rules || [],
-    set: c.set?.name
+    set: c.setName
   }));
 
-  const fmtNote = format === 'standard' ? 'Standard' : format === 'expanded' ? 'Expanded' : 'any format';
-
-  const prompt = `You are a competitive Pokémon TCG expert. A ${fmtNote} player needs: "${query}"
+  const prompt = `You are a competitive Pokémon TCG expert. A Standard format player needs: "${query}"
 
 Analyze each card's actual ability/attack/trainer text carefully. Return ONLY a JSON array (no markdown, no preamble), max 12 results sorted by relevance:
 [{"id":"...","name":"...","reason":"1-2 sentences referencing the specific ability or attack name and text explaining exactly how this card fulfills the search intent","relevance":"high"|"medium"|"low"}]
