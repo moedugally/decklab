@@ -139,7 +139,7 @@ function normalizeCard(c) {
   };
 }
 
-const NEGATIVE_THRESHOLD = 3;
+const NEGATIVE_THRESHOLD = 1;
 
 async function filterFlagged(query, cards) {
   if (!KV_URL || !KV_TOKEN || !cards.length) return cards;
