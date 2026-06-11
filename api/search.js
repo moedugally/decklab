@@ -220,7 +220,7 @@ ${JSON.stringify(sums, null, 1)}`;
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     })
   });
@@ -232,5 +232,6 @@ ${JSON.stringify(sums, null, 1)}`;
 
   const data = await r.json();
   const text = data.content.map(b => b.text || '').join('');
-  return JSON.parse(text.replace(/```json|```/g, '').trim());
+  const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+  return Array.isArray(parsed) ? parsed : [];
 }
