@@ -14,17 +14,19 @@ async function cacheGet(key) {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
     const d = await r.json();
-    return d.result ? JSON.parse(d.result) : null;
+    if (!d.result) return null;
+    const parsed = JSON.parse(d.result);
+    return Array.isArray(parsed) ? parsed : null;
   } catch { return null; }
 }
 
 async function cacheSet(key, value) {
   if (!KV_URL || !KV_TOKEN) return;
   try {
-    await fetch(`${KV_URL}/set/${encodeURIComponent(key)}`, {
+    await fetch(`${KV_URL}/pipeline`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: JSON.stringify(value), ex: CACHE_TTL })
+      body: JSON.stringify([['SET', key, JSON.stringify(value), 'EX', CACHE_TTL]])
     });
   } catch { /* non-fatal */ }
 }
