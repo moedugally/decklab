@@ -205,8 +205,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
           <button id="demo-go-btn" style="background:var(--red);border:none;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12px;padding:6px 14px;border-radius:8px;cursor:default;opacity:0;transition:opacity 0.4s,transform 0.15s,box-shadow 0.15s;flex-shrink:0;margin-left:8px;white-space:nowrap">Search →</button>
         </div>
         <div style="position:relative;height:0;overflow:visible">
-          <svg id="demo-cursor" style="position:absolute;width:18px;height:18px;opacity:0;transition:opacity 0.3s,right 0.55s cubic-bezier(0.4,0,0.2,1);pointer-events:none;z-index:20;top:-22px;right:110px" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-            <path d="M3 2l6 13 2.5-4.5 5 1.5L3 2z" fill="white" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>
+          <svg id="demo-cursor" style="position:absolute;width:20px;height:20px;opacity:0;transition:opacity 0.3s,right 0.55s cubic-bezier(0.4,0,0.2,1);pointer-events:none;z-index:20;top:-10px;right:110px" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M4 2 L4 15 L7 12 L9.5 17 L11 16.5 L8.5 11.5 L12.5 11.5 Z" fill="white" stroke="rgba(0,0,0,0.5)" stroke-width="1" stroke-linejoin="round"/>
           </svg>
         </div>
       </div>
@@ -414,7 +414,7 @@ function revealSearchBtn(){
   if(mouse){
     mouse.style.opacity='1';
     setTimeout(()=>{
-      mouse.style.right='14px';
+      mouse.style.right='38px';
       setTimeout(()=>{
         if(btn){
           btn.style.transform='scale(0.88)';
