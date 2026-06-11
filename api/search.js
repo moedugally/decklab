@@ -79,29 +79,34 @@ export default async function handler(req, res) {
 async function fetchSmartCards(query, format, typeFilter) {
   const lq = query.toLowerCase();
 
-  // Determine supertype
-  let supertype = 'pokemon';
-  if (/\b(trainer|supporter|item|stadium|tool)\b/.test(lq)) supertype = 'trainer';
-  else if (/\benergy card\b/.test(lq)) supertype = 'energy';
+  // Determine which supertypes to search
+  let supertypes;
+  if (/\benergy card\b/.test(lq)) {
+    supertypes = ['energy'];
+  } else if (/\b(trainer|supporter|item|stadium|tool)\b/.test(lq)) {
+    supertypes = ['trainer'];
+  } else {
+    // Search both pokemon and trainer by default — many queries (draw, search deck, heal)
+    // are best answered by trainers even when the user doesn't say "trainer"
+    supertypes = ['pokemon', 'trainer'];
+  }
 
-  // Extract keywords to search card text directly
   const keywords = extractKeywords(lq);
-
-  // Build multiple targeted queries and merge results
-  const queries = buildQueries(supertype, keywords, format, typeFilter);
-
   const cardMap = new Map();
 
-  await Promise.all(queries.map(async (q) => {
-    try {
-      const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=30`;
-      const r = await fetch(url);
-      if (!r.ok) return;
-      const data = await r.json();
-      (data.data || []).forEach(c => cardMap.set(c.id, c));
-    } catch(e) {
-      // silently skip failed sub-queries
-    }
+  await Promise.all(supertypes.flatMap(supertype => {
+    const queries = buildQueries(supertype, keywords, format, typeFilter);
+    return queries.map(async (q) => {
+      try {
+        const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=30`;
+        const r = await fetch(url);
+        if (!r.ok) return;
+        const data = await r.json();
+        (data.data || []).forEach(c => cardMap.set(c.id, c));
+      } catch(e) {
+        // silently skip failed sub-queries
+      }
+    });
   }));
 
   let results = Array.from(cardMap.values());
