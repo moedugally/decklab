@@ -115,7 +115,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 @keyframes spin{to{transform:rotate(360deg)}}
 .cnt{background:var(--red-glow);color:var(--red2);border-radius:99px;padding:2px 9px;font-size:11px;font-weight:600;font-family:'Space Grotesk',sans-serif}
 
-.app-body{display:flex;height:calc(100vh - 230px)}
+.app-body{display:flex;height:calc(100vh - 190px)}
 .results-col{flex:1;min-width:0;padding:0 24px 24px;overflow-y:auto}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 
@@ -134,7 +134,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 .empty-app strong{font-family:'Space Grotesk',sans-serif;font-size:15px;color:var(--text2);font-weight:500}
 .empty-app p{font-size:13px;max-width:260px;line-height:1.6}
 
-.detail-col{width:420px;flex-shrink:0;border-left:0.5px solid var(--line);display:none;flex-direction:column;overflow-y:auto;background:var(--s1)}
+.detail-col{width:300px;flex-shrink:0;border-left:0.5px solid var(--line);display:none;flex-direction:column;overflow-y:auto;background:var(--s1)}
 .detail-col.open{display:flex}
 .dh{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0}
 .dc-close{width:28px;height:28px;border-radius:7px;border:0.5px solid var(--line2);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:15px;transition:all 0.15s}
@@ -173,7 +173,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 .fb-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:6px;background:rgba(20,20,24,0.85);border:0.5px solid rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:13px;opacity:0;transition:opacity 0.15s;z-index:2}
 .ct:hover .fb-btn{opacity:1}
 .fb-btn:hover{background:var(--s3);color:var(--text)}
-.fb-menu{position:absolute;top:32px;right:6px;background:var(--s1);border:0.5px solid var(--line2);border-radius:10px;padding:4px;width:200px;z-index:10;display:none}
+.fb-menu{position:absolute;top:0;left:0;right:0;background:rgba(20,20,24,0.97);border:0.5px solid var(--line2);border-radius:10px;padding:4px;z-index:10;display:none}
 .fb-menu.open{display:block}
 .fb-opt{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;font-size:12px;color:var(--text2);cursor:pointer;background:none;border:none;width:100%;text-align:left}
 .fb-opt:hover{background:var(--s2);color:var(--text)}

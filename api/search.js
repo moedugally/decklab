@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   }
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v2:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   try {
     const cached = await cacheGet(cacheKey);
@@ -68,7 +68,8 @@ export default async function handler(req, res) {
     // Trainers/Energy by name only (reprints are functionally identical)
     const seen = new Set();
     const deduped = cards.filter(c => {
-      const key = c.supertype === 'Pokémon' ? `${c.name}|${c.setName}` : c.name;
+      const isPokemon = !['trainer','energy'].includes(c.supertype?.toLowerCase());
+      const key = isPokemon ? `${c.name}|${c.setName}` : c.name;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
