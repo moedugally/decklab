@@ -68,6 +68,11 @@ export default async function handler(req, res) {
     const cached = await cacheGet(cacheKey);
     if (cached) {
       const filtered = await filterFlagged(query, cached);
+      const pinned = await getPinned(query);
+      const existingIds = new Set(filtered.map(m => m.id));
+      for (const c of pinned) {
+        if (!existingIds.has(c.id)) filtered.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
+      }
       res.setHeader('X-Cache', 'HIT');
       return res.status(200).json({ matches: filtered });
     }
@@ -103,6 +108,15 @@ export default async function handler(req, res) {
       relevance: 'high',
       card: normalizeCard(c)
     }));
+
+    // Append any user-pinned cards for this query (submitted via "did we miss a card?")
+    const pinned = await getPinned(query);
+    const existingIds = new Set(enriched.map(m => m.id));
+    for (const c of pinned) {
+      if (!existingIds.has(c.id)) {
+        enriched.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
+      }
+    }
 
     cacheSet(cacheKey, enriched);
 
@@ -141,6 +155,17 @@ function normalizeCard(c) {
 }
 
 const NEGATIVE_THRESHOLD = 1;
+
+async function getPinned(query) {
+  if (!KV_URL || !KV_TOKEN) return [];
+  try {
+    const r = await fetch(`${KV_URL}/get/${encodeURIComponent(`pinned:${query.trim().toLowerCase()}`)}`, {
+      headers: { Authorization: `Bearer ${KV_TOKEN}` }
+    });
+    const d = await r.json();
+    return d.result ? JSON.parse(d.result) : [];
+  } catch { return []; }
+}
 
 async function filterFlagged(query, cards) {
   if (!KV_URL || !KV_TOKEN || !cards.length) return cards;
