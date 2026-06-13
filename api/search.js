@@ -82,7 +82,7 @@ Return this exact JSON shape:
 
 Examples:
 - "heal crustle" → rewritten_query: "trainer cards and pokemon abilities that heal damage counters or restore HP to any pokemon. Recovery supporters, healing items, abilities that remove damage."
-- "low energy high damage" → minDamage: 150, maxEnergyCost: 1, rewritten_query: "pokemon attacker with high damage output for minimal energy cost, one energy attack, efficient damage dealer"
+- "low energy high damage" → minDamage: 100, maxEnergyCost: 2, rewritten_query: "pokemon attacker with high damage output for minimal energy cost, efficient damage dealer, strong attack low cost"
 - "counter lost box" → rewritten_query: "cards that disrupt lost zone strategies, prevent lost zone damage, path to the peak ability lock, prize denial counters"
 - "heal mega kangaskhan" → excludeNames: ["Kangaskhan","Mega Kangaskhan"], rewritten_query: "healing trainer cards, damage counter removal, HP restoration supporters and items, recovery mechanics"
 
@@ -219,7 +219,11 @@ function applyStructuredFilters(cards, criteria) {
 
       const qualifies = attacks.some(a => {
         const dmg = parseInt((a.damage || '').replace(/[^0-9]/g, '')) || 0;
-        const cost = typeof a.convertedEnergyCost === 'number' ? a.convertedEnergyCost : (a.cost?.length || 0);
+        // convertedEnergyCost may be stored as string in vector metadata
+        const rawCost = a.convertedEnergyCost;
+        const cost = rawCost !== null && rawCost !== undefined
+          ? parseInt(rawCost, 10)
+          : (Array.isArray(a.cost) ? a.cost.length : 0);
         const damageOk = !hasDamageConstraint || dmg >= minDamage;
         const costOk = !hasCostConstraint || cost <= maxEnergyCost;
         return damageOk && costOk;
@@ -344,7 +348,16 @@ export default async function handler(req, res) {
     });
 
     // ── hard structured filters (numeric constraints, exclusions) ──
-    const hardFiltered = applyStructuredFilters(deduped, intent.criteria);
+    // Safety: if filters eliminate everything, fall back to full deduped set
+    // so the re-ranker can still do semantic filtering
+    const hardFiltered = (() => {
+      const f = applyStructuredFilters(deduped, intent.criteria);
+      return f.length > 0 ? f : applyStructuredFilters(deduped, {
+        ...intent.criteria,
+        minDamage: null,
+        maxEnergyCost: null,
+      });
+    })();
 
     // ── semantic re-ranking ──
     const reranked = await rerank(query, intent, hardFiltered);
