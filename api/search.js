@@ -194,10 +194,10 @@ function applyStructuredFilters(cards, criteria) {
       if (excludeNames.some(n => cardNameLower.includes(n.toLowerCase()))) return false;
     }
 
-    // Supertype filter (normalize accent: "Pokémon" → "pokemon")
+    // Supertype filter — strip diacritics so "Pokémon" === "pokemon"
     if (requireSupertype) {
-      const normalize = s => (s || '').toLowerCase().replace('é', 'e');
-      if (normalize(card.supertype) !== normalize(requireSupertype)) return false;
+      const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/̀-ͯ/g, '').replace(/[^a-z]/g, '');
+      if (norm(card.supertype) !== norm(requireSupertype)) return false;
     }
 
     // Energy type filter
