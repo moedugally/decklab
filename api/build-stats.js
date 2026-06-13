@@ -63,21 +63,25 @@ export default async function handler(req, res) {
   if (!KV_URL || !KV_TOKEN) return res.status(500).json({ error: 'Redis not configured' });
 
   try {
-    const allCards = [];
-
-    for (const mark of STANDARD_MARKS) {
+    // Fetch all marks in parallel, paginating each concurrently
+    async function fetchMark(mark) {
+      const cards = [];
       let page = 1;
       while (true) {
         const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`regulationMark:${mark}`)}&pageSize=250&page=${page}`;
         const r = await fetch(url, { headers: { 'User-Agent': 'decklab/1.0' } });
         if (!r.ok) break;
         const data = await r.json();
-        const cards = data.data || [];
-        allCards.push(...cards);
-        if (cards.length < 250) break;
+        const batch = data.data || [];
+        cards.push(...batch);
+        if (batch.length < 250) break;
         page++;
       }
+      return cards;
     }
+
+    const results = await Promise.all(STANDARD_MARKS.map(fetchMark));
+    const allCards = results.flat();
 
     const stats = allCards
       .filter(c => STANDARD_MARKS.includes(c.regulationMark))
