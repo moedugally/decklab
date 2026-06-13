@@ -151,24 +151,37 @@ Return this exact JSON shape:
     "maxRetreatCost": <max retreat cost count, or null>,
     "excludeNames": ["<names to EXCLUDE — always include named_card here for counter/named_pokemon queries>"],
     "requireSupertype": "<'pokemon'|'trainer'|'energy'|null>",
-    "requireTypes": ["<energy types like 'Fire','Water' if specified, else []>"]
+    "requireTypes": ["<energy types like 'Fire','Water' if specified, else []>"],
+    "requireColorlessAttacksOnly": <true if ALL attacks must use only Colorless energy (no typed energy at all), else false>,
+    "requireAbility": <true if card must have at least one Ability, else false>,
+    "requireStage": "<'Basic'|'Stage 1'|'Stage 2'|'VMAX'|'VSTAR'|null — only set if stage is explicitly mentioned>",
+    "excludePokemonRule": <true if query says '1 prize', 'non-ex', 'non-V', 'single prize' — excludes ex/V/VMAX/VSTAR, else false>,
+    "requirePokemonRule": <true if query says '2 prize', 'ex only', 'V pokemon' — requires rule box, else false>,
+    "cardTextContains": "<exact mechanic phrase to find in ability/attack text, e.g. 'move damage counters', 'discard energy', 'search your deck' — or null>"
   },
-  "rewritten_query": "<CRITICAL: describe the SOLUTION CARDS you're looking for, NOT the target Pokémon. 2-4 sentences about what the ideal result card does.>",
-  "alternative_queries": ["<alternate semantic phrasing — focus on numeric stats and role>", "<alternate phrasing — focus on deck synergy and archetype context>"]
+  "rewritten_query": "<CRITICAL: describe the SOLUTION CARDS you're looking for. Include the specific card text pattern if relevant. 2-4 sentences.>",
+  "alternative_queries": ["<alternate phrasing — stat/numeric focus>", "<alternate phrasing — role/synergy focus>"]
 }
 
 Rules:
-- "low energy" always means maxEnergyCost 1 or 2 MAX. Never set maxEnergyCost above 2 for "low energy" queries.
+- "low energy" → maxEnergyCost 1 or 2 MAX. Never above 2.
 - "cheap attacker" → minDamage: 120, maxEnergyCost: 2
 - "1 energy attacker" → minDamage: 100, maxEnergyCost: 1
-- "heal <pokemon>" → excludeNames: ["<pokemon>"], rewritten_query describes healing cards, NOT the pokemon
-- alternative_queries must be genuinely different angles (one stat-focused, one role/synergy-focused)
+- "heal <pokemon>" → excludeNames: ["<pokemon>"], rewritten_query describes healing cards NOT the pokemon
+- "only colorless attacks" / "colorless cost" / "splashable attacker" → requireColorlessAttacksOnly: true
+- "1 prize" / "non-ex" / "non-V" / "single prize" → excludePokemonRule: true
+- "move damage" / "transfer damage counters" → cardTextContains: "move damage counters"
+- "discard energy from opponent" → cardTextContains: "discard an Energy"
+- "search deck for" → cardTextContains: "search your deck"
+- alternative_queries must be genuinely different angles
 
 Examples:
-- "heal crustle" → type: named_pokemon, excludeNames: ["Crustle"], rewritten_query: "trainer cards and abilities that remove damage counters or restore HP. Healing supporters, recovery items, damage removal."
-- "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon attacker with high damage for minimal energy cost, efficient damage dealer", alternative_queries: ["2 energy 130+ damage pokemon knockout attacker", "cheap cost powerful attack 1-2 energy efficient pokemon"]
-- "counter lost box" → rewritten_query: "cards that disrupt lost zone strategies, prevent lost zone damage, ability lock, prize denial", alternative_queries: ["path to the peak ability lock disruption control", "interrupt lost zone engine denial tech card"]
-- "heal mega kangaskhan" → excludeNames: ["Kangaskhan","Mega Kangaskhan"], rewritten_query: "healing trainer cards, damage counter removal, HP restoration supporters and items"
+- "heal crustle" → type: named_pokemon, excludeNames: ["Crustle"], rewritten_query: "trainer cards and abilities that remove damage counters or restore HP."
+- "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
+- "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
+- "move damage from my pokemon to opponents pokemon" → cardTextContains: "move damage counters", rewritten_query: "ability or attack that moves or transfers damage counters from your pokemon to opponent's pokemon. Damage counter manipulation, redirect damage."
+- "1 prize attacker" → excludePokemonRule: true, requireSupertype: "pokemon", rewritten_query: "single prize non-ex non-V attacker"
+- "pokemon with an ability" → requireAbility: true, requireSupertype: "pokemon"
 
 User query: `;
 
@@ -210,10 +223,16 @@ async function classifyQuery(query, archetypes) {
     const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     if (!parsed.criteria) parsed.criteria = {};
     const c = parsed.criteria;
-    if (!c.excludeNames)    c.excludeNames    = [];
-    if (!c.requireTypes)    c.requireTypes    = [];
-    if (c.requireSupertype == null) c.requireSupertype = null;
-    if (!parsed.alternative_queries) parsed.alternative_queries = [];
+    if (!c.excludeNames)               c.excludeNames               = [];
+    if (!c.requireTypes)               c.requireTypes               = [];
+    if (c.requireSupertype == null)    c.requireSupertype           = null;
+    if (c.requireColorlessAttacksOnly == null) c.requireColorlessAttacksOnly = false;
+    if (c.requireAbility == null)      c.requireAbility             = false;
+    if (c.requireStage == null)        c.requireStage               = null;
+    if (c.excludePokemonRule == null)  c.excludePokemonRule         = false;
+    if (c.requirePokemonRule == null)  c.requirePokemonRule         = false;
+    if (c.cardTextContains == null)    c.cardTextContains           = null;
+    if (!parsed.alternative_queries)   parsed.alternative_queries   = [];
 
     if (archetypeMatch && (parsed.type === 'archetype' || parsed.type === 'counter')) {
       parsed._archetype = archetypeMatch;
@@ -287,20 +306,71 @@ function mergeRRF(resultSets, k = 60) {
 
 function applyStructuredFilters(cards, criteria) {
   if (!criteria) return cards;
-  const { minDamage, maxEnergyCost, maxRetreatCost, excludeNames, requireSupertype, requireTypes } = criteria;
-  const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+  const {
+    minDamage, maxEnergyCost, maxRetreatCost,
+    excludeNames, requireSupertype, requireTypes,
+    requireColorlessAttacksOnly, requireAbility, requireStage,
+    excludePokemonRule, requirePokemonRule, cardTextContains,
+  } = criteria;
+
+  const norm      = s => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+  const textOf    = s => (s || '').toLowerCase();
+  const hasRule   = card => (card.rules || []).some(r =>
+    /\bex\b|v\b|vmax\b|vstar\b|restored\b/i.test(r)
+  );
 
   return cards.filter(card => {
+    // Name exclusions
     if (excludeNames?.length) {
-      const nameLower = card.name?.toLowerCase() || '';
-      if (excludeNames.some(n => nameLower.includes(n.toLowerCase()))) return false;
+      const n = card.name?.toLowerCase() || '';
+      if (excludeNames.some(ex => n.includes(ex.toLowerCase()))) return false;
     }
+
+    // Supertype (Pokémon / Trainer / Energy)
     if (requireSupertype && norm(card.supertype) !== norm(requireSupertype)) return false;
+
+    // Energy type filter
     if (requireTypes?.length && !requireTypes.some(t => (card.types || []).includes(t))) return false;
+
+    // Stage filter (Basic / Stage 1 / Stage 2 / VMAX / VSTAR)
+    if (requireStage) {
+      if (!(card.subtypes || []).some(s => norm(s) === norm(requireStage))) return false;
+    }
+
+    // Prize / rule-box filters
+    if (excludePokemonRule && hasRule(card)) return false;
+    if (requirePokemonRule && !hasRule(card)) return false;
+
+    // Must have at least one Ability
+    if (requireAbility && !(card.abilities || []).length) return false;
+
+    // Retreat cost
     if (maxRetreatCost !== null && maxRetreatCost !== undefined) {
       if ((card.retreatCost?.length ?? 99) > maxRetreatCost) return false;
     }
 
+    // All attacks must use only Colorless energy (no typed energy)
+    if (requireColorlessAttacksOnly) {
+      const attacks = card.attacks || [];
+      // Trainers/Energy with no attacks — exclude unless explicitly a trainer search
+      if (!attacks.length) return false;
+      const allColorless = attacks.every(a =>
+        (a.cost || []).every(c => c === 'Colorless')
+      );
+      if (!allColorless) return false;
+    }
+
+    // Card text contains a specific mechanic phrase (abilities OR attacks OR rules)
+    if (cardTextContains) {
+      const needle = textOf(cardTextContains);
+      const abilityText  = (card.abilities || []).map(a => textOf(a.text)).join(' ');
+      const attackText   = (card.attacks || []).map(a => textOf(a.text)).join(' ');
+      const rulesText    = (card.rules || []).map(textOf).join(' ');
+      const combined     = `${abilityText} ${attackText} ${rulesText}`;
+      if (!combined.includes(needle)) return false;
+    }
+
+    // Attack damage + energy cost — card passes if ANY attack satisfies BOTH
     const hasDmg  = minDamage !== null && minDamage !== undefined;
     const hasCost = maxEnergyCost !== null && maxEnergyCost !== undefined;
     if (!hasDmg && !hasCost) return true;
@@ -357,15 +427,24 @@ async function rerank(originalQuery, intent, cards) {
     retreatCost: c.retreatCost?.length ?? 0,
   }));
 
-  const constraintNote = intent.constraints?.length
-    ? `ALL constraints must be satisfied simultaneously: ${intent.constraints.join('; ')}. Exclude any card satisfying only some.`
-    : '';
+  // Build explicit pass/fail rules from structured criteria so reranker enforces them exactly
+  const c = intent.criteria || {};
+  const hardRules = [
+    intent.constraints?.length && `ALL of these must be true simultaneously: ${intent.constraints.join('; ')}`,
+    c.requireColorlessAttacksOnly && `HARD RULE: ALL of the card's attacks must use ONLY Colorless energy. Reject any card where even one attack requires typed energy (Fire, Water, etc.).`,
+    c.cardTextContains          && `HARD RULE: Card's ability or attack text must contain "${c.cardTextContains}". Reject any card whose text does not mention this.`,
+    c.requireAbility            && `HARD RULE: Card must have at least one Ability. Reject Pokémon with no abilities.`,
+    c.excludePokemonRule        && `HARD RULE: Card must NOT have a rule box (no ex, V, VMAX, VSTAR). Single-prize only.`,
+    c.requirePokemonRule        && `HARD RULE: Card MUST have a rule box (ex, V, VMAX, or VSTAR).`,
+    c.requireStage              && `HARD RULE: Card must be a ${c.requireStage}. Reject other stages.`,
+    c.minDamage                 && `HARD RULE: Card must have at least one attack dealing ${c.minDamage}+ damage.`,
+    c.maxEnergyCost !== null && c.maxEnergyCost !== undefined && `HARD RULE: The qualifying attack must cost ${c.maxEnergyCost} energy or fewer.`,
+  ].filter(Boolean).join('\n');
 
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
 Intent: ${intent.type}${intent.named_card ? ` (target: ${intent.named_card})` : ''}${intent.archetype_name ? ` (archetype: ${intent.archetype_name})` : ''}
-${constraintNote}
-
-Return ONLY the IDs of cards that genuinely fulfill the search intent, best first. Be strict.
+${hardRules ? `\nSTRICT REQUIREMENTS — violating any one of these is grounds for rejection:\n${hardRules}\n` : ''}
+Return ONLY the IDs of cards that genuinely fulfill ALL requirements, best matches first. Be strict — it is better to return fewer correct cards than many incorrect ones.
 Return ONLY a JSON array of IDs, no markdown: ["id1","id2",...]
 
 Candidates:
@@ -399,7 +478,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v7:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v8:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');
@@ -445,9 +524,13 @@ export default async function handler(req, res) {
       primaryQuery = buildArchetypeQuery(intent);
     }
 
-    // Build alternative query list: primary + up to 2 from intent
+    // If a specific card text mechanic was identified, add it as an extra search angle
+    const mechanic = intent.criteria?.cardTextContains;
+    const mechanicQuery = mechanic ? `pokemon card with ability or attack that says "${mechanic}" ${primaryQuery}` : null;
+
+    // Build query list: primary + mechanic variant + up to 2 alternatives from intent
     const altQueries = (intent.alternative_queries || []).slice(0, 2);
-    const allQueries = [primaryQuery, ...altQueries];
+    const allQueries = [primaryQuery, mechanicQuery, ...altQueries].filter(Boolean);
 
     // ── parallel vector searches (RRF merge) ──
     const resultSets = await Promise.all(
@@ -520,7 +603,17 @@ export default async function handler(req, res) {
     for (const match of initialResults) write(match);
 
     // ── semantic re-ranking (runs after initial results streamed) ──
-    const needsRerank = ['named_pokemon', 'multi_constraint', 'counter', 'synergy', 'budget'].includes(intent.type);
+    // Rerank whenever there are structural constraints or the query is complex
+    const hasStructuralConstraints = !!(
+      intent.criteria?.requireColorlessAttacksOnly ||
+      intent.criteria?.cardTextContains ||
+      intent.criteria?.requireAbility ||
+      intent.criteria?.excludePokemonRule ||
+      intent.criteria?.requirePokemonRule ||
+      intent.criteria?.requireStage
+    );
+    const needsRerank = hasStructuralConstraints ||
+      ['named_pokemon', 'multi_constraint', 'counter', 'synergy', 'budget'].includes(intent.type);
     let finalResults = initialResults;
 
     if (needsRerank && hardFiltered.length > 0) {
