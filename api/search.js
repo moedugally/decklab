@@ -587,7 +587,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v9:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v10:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');

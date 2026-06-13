@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   const cacheTypes = ['', 'fire', 'water', 'grass', 'lightning', 'psychic',
                       'fighting', 'darkness', 'metal', 'dragon', 'colorless', 'fairy'];
   for (const t of cacheTypes) {
-    pipeline.push(['DEL', `v9:search:standard:${t}:${q}`]);
+    pipeline.push(['DEL', `v10:search:standard:${t}:${q}`]);
   }
 
   try {
