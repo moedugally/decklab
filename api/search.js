@@ -345,8 +345,9 @@ export default async function handler(req, res) {
       searchQuery = buildArchetypeQuery(intent);
     }
 
-    // ── vector search ──
-    const cards = await vectorSearch(searchQuery, typeFilter);
+    // ── vector search — wider net for numeric constraint queries ──
+    const topK = intent.type === 'multi_constraint' ? 250 : 100;
+    const cards = await vectorSearch(searchQuery, typeFilter, topK);
     if (!cards.length) return res.status(200).json({ matches: [], _debug: 'no vector results' });
 
     // ── dedupe ──
@@ -467,12 +468,12 @@ async function filterFlagged(query, cards) {
   } catch { return cards; }
 }
 
-async function vectorSearch(query, typeFilter) {
+async function vectorSearch(query, typeFilter, topK = 100) {
   if (!VECTOR_URL || !VECTOR_TOKEN) return [];
   const r = await fetch(`${VECTOR_URL}/query-data`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${VECTOR_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data: query, topK: 100, includeMetadata: true })
+    body: JSON.stringify({ data: query, topK, includeMetadata: true })
   });
   if (!r.ok) return [];
   const data = await r.json();
