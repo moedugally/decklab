@@ -21,10 +21,10 @@ const KV_TOKEN = process.env.KV_REST_API_TOKEN;
 const VECTOR_URL = process.env.UPSTASH_VECTOR_REST_URL;
 const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const CACHE_TTL = 60 * 60 * 24 * 30; // 30 days
+const CACHE_TTL = 60 * 60 * 24 * 30;
 const NEGATIVE_THRESHOLD = 1;
 
-// ── cache ────────────────────────────────────────────────────────────────────
+// ── cache ─────────────────────────────────────────────────────────────────────
 
 async function cacheGet(key) {
   if (!KV_URL || !KV_TOKEN) return null;
@@ -50,83 +50,92 @@ async function cacheSet(key, value) {
   } catch { /* non-fatal */ }
 }
 
-// ── query intelligence ────────────────────────────────────────────────────────
+// ── query intelligence ─────────────────────────────────────────────────────────
 
 const INTENT_PROMPT = `You are a competitive Pokémon TCG search engine. Analyze the user's query and return a JSON object (no markdown).
 
-Query types and how to handle them:
-- "named_pokemon": query mentions a specific Pokémon by name that the user wants to SUPPORT or USE (e.g. "heal crustle", "energy for charizard", "works with dragapult")
-- "archetype": query refers to a deck archetype or deck list (e.g. "lost box deck", "dragapult ex list", "regidrago build")
-- "counter": query wants to beat or counter something (e.g. "beat charizard", "counter lost box", "good against giratina")
-- "synergy": query wants cards that combo with a named card (e.g. "works with iron hands", "pairs with fezandipiti", "good with iono")
-- "multi_constraint": query has multiple simultaneous requirements (e.g. "low energy high damage", "1 prize wall", "fast cheap attacker")
-- "budget": query wants cheaper alternatives (e.g. "budget boss orders", "free alternative to ultra ball")
-- "general": everything else — simple role/mechanic searches
+Query types:
+- "named_pokemon": wants cards to SUPPORT a specific Pokémon (e.g. "heal crustle", "energy for charizard", "works with dragapult")
+- "archetype": wants cards for a deck archetype (e.g. "lost box deck", "dragapult ex list")
+- "counter": wants to beat/counter something (e.g. "beat charizard", "counter lost box")
+- "synergy": wants cards that combo with a named card (e.g. "works with iron hands", "pairs with iono")
+- "multi_constraint": has multiple simultaneous numeric/role requirements (e.g. "low energy high damage", "1 prize wall", "fast cheap attacker")
+- "budget": wants cheaper alternatives (e.g. "budget boss orders")
+- "general": simple role/mechanic searches
 
-Return:
+Return this exact JSON shape:
 {
-  "type": "<one of the types above>",
-  "named_card": "<the specific Pokémon or card name if present, else null>",
+  "type": "<type>",
+  "named_card": "<specific Pokémon/card name if present, else null>",
   "archetype_name": "<archetype name if type is archetype or counter, else null>",
-  "constraints": ["<list each distinct constraint for multi_constraint, else []>"],
-  "rewritten_query": "<an expanded, precise search query using TCG mechanic language that will find the best vector matches. Be specific about mechanics, effects, and roles. 2-4 sentences.>"
+  "constraints": ["<each distinct constraint for multi_constraint, else []>"],
+  "criteria": {
+    "minDamage": <minimum damage number for any single attack, or null>,
+    "maxEnergyCost": <maximum convertedEnergyCost for that attack, or null>,
+    "maxRetreatCost": <max retreat cost count, or null>,
+    "excludeNames": ["<names of Pokémon/cards to EXCLUDE from results — always include named_card here for counter/named_pokemon queries>"],
+    "requireSupertype": "<'pokemon'|'trainer'|'energy'|null>",
+    "requireTypes": ["<energy types like 'Fire','Water' if specified, else []>"]
+  },
+  "rewritten_query": "<expanded precise search query using TCG mechanic language, 2-4 sentences>"
 }
+
+For "low energy high damage": minDamage ~150, maxEnergyCost 1-2.
+For "counter X": excludeNames should include X and its evolutions.
+For "heal crustle": excludeNames: ["Crustle","Dwebble"], requireSupertype null (healing can be trainer or pokemon ability).
 
 User query: `;
 
 async function classifyQuery(query, archetypes) {
-  // Fast path: pure slang — no need to call Claude
   const lq = query.trim().toLowerCase();
+
+  // Fast path: pure TCG slang
   if (TCG_SLANG[lq]) {
     return {
       type: 'general',
       named_card: null,
       archetype_name: null,
       constraints: [],
+      criteria: { minDamage: null, maxEnergyCost: null, maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [] },
       rewritten_query: `${query} ${TCG_SLANG[lq]}`
     };
   }
 
-  // Check if it matches a known archetype before calling Claude
   const archetypeMatch = findArchetype(archetypes, lq);
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 512,
+        max_tokens: 600,
         messages: [{ role: 'user', content: INTENT_PROMPT + `"${query}"` }]
       })
     });
     const data = await r.json();
     const text = data.content?.map(b => b.text || '').join('') || '';
     const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+    if (!parsed.criteria) parsed.criteria = { minDamage: null, maxEnergyCost: null, maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [] };
+    if (!parsed.criteria.excludeNames) parsed.criteria.excludeNames = [];
 
-    // If Claude found an archetype name but we already have a Limitless match, attach it
     if (archetypeMatch && (parsed.type === 'archetype' || parsed.type === 'counter')) {
       parsed._archetype = archetypeMatch;
     }
-
     return parsed;
   } catch {
-    // Fallback: treat as general with slang expansion
     return {
       type: 'general',
       named_card: null,
       archetype_name: null,
       constraints: [],
+      criteria: { minDamage: null, maxEnergyCost: null, maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [] },
       rewritten_query: query
     };
   }
 }
 
-// Look up a named Pokémon card in the vector index to get its real attributes
+// Look up a named Pokémon in the vector index to get its real attributes
 async function lookupCardData(cardName) {
   if (!VECTOR_URL || !VECTOR_TOKEN) return null;
   try {
@@ -137,13 +146,10 @@ async function lookupCardData(cardName) {
     });
     const data = await r.json();
     const results = (data.result || []).map(r => r.metadata).filter(Boolean);
-    // Find the best exact name match
-    const exact = results.find(c => c.name?.toLowerCase() === cardName.toLowerCase());
-    return exact || results[0] || null;
+    return results.find(c => c.name?.toLowerCase() === cardName.toLowerCase()) || results[0] || null;
   } catch { return null; }
 }
 
-// Build an enriched query for named_pokemon intent using the card's actual data
 async function buildNamedPokemonQuery(intent, originalQuery) {
   const cardData = await lookupCardData(intent.named_card);
   if (!cardData) return intent.rewritten_query;
@@ -156,23 +162,72 @@ async function buildNamedPokemonQuery(intent, originalQuery) {
     ...(cardData.attacks || []).map(a => `attack "${a.name}" (${a.damage || '–'}): ${a.text || ''}`),
   ].filter(Boolean).join('. ');
 
-  return `${intent.rewritten_query} Target Pokémon details — ${cardData.name}: ${traits}`;
+  return `${intent.rewritten_query} Target Pokémon — ${cardData.name}: ${traits}`;
 }
 
-// Build an enriched query for archetype/counter intents using Limitless data
-function buildArchetypeQuery(intent, originalQuery) {
+function buildArchetypeQuery(intent) {
   const arch = intent._archetype;
   if (!arch) return intent.rewritten_query;
-
   const keyCards = (arch.cards || []).slice(0, 6).map(c => c.name).join(', ');
   const base = intent.type === 'counter'
     ? `Cards that counter or disrupt the ${arch.name} archetype. Key cards in that deck: ${keyCards}.`
     : `Support cards for the ${arch.name} archetype. Key cards: ${keyCards}.`;
-
   return `${base} ${intent.rewritten_query}`;
 }
 
-// Re-rank candidates against the original query + intent
+// ── structured code-level filtering (hard numeric constraints) ─────────────────
+
+function applyStructuredFilters(cards, criteria) {
+  if (!criteria) return cards;
+  const { minDamage, maxEnergyCost, maxRetreatCost, excludeNames, requireSupertype, requireTypes } = criteria;
+
+  return cards.filter(card => {
+    // Exclude named cards (e.g. don't return Crustle when searching "heal crustle")
+    if (excludeNames?.length) {
+      const cardNameLower = card.name?.toLowerCase() || '';
+      if (excludeNames.some(n => cardNameLower.includes(n.toLowerCase()))) return false;
+    }
+
+    // Supertype filter
+    if (requireSupertype && card.supertype?.toLowerCase() !== requireSupertype.toLowerCase()) return false;
+
+    // Energy type filter
+    if (requireTypes?.length) {
+      if (!requireTypes.some(t => (card.types || []).includes(t))) return false;
+    }
+
+    // Retreat cost filter
+    if (maxRetreatCost !== null && maxRetreatCost !== undefined) {
+      const retreat = card.retreatCost?.length ?? 99;
+      if (retreat > maxRetreatCost) return false;
+    }
+
+    // Attack damage + energy cost filter — card passes if ANY attack satisfies BOTH constraints
+    const hasDamageConstraint = minDamage !== null && minDamage !== undefined;
+    const hasCostConstraint = maxEnergyCost !== null && maxEnergyCost !== undefined;
+
+    if (hasDamageConstraint || hasCostConstraint) {
+      const attacks = card.attacks || [];
+      // If it's a trainer/energy with no attacks, only fail if we specifically need damage
+      if (!attacks.length) return !hasDamageConstraint;
+
+      const qualifies = attacks.some(a => {
+        const dmg = parseInt((a.damage || '').replace(/[^0-9]/g, '')) || 0;
+        const cost = typeof a.convertedEnergyCost === 'number' ? a.convertedEnergyCost : (a.cost?.length || 0);
+        const damageOk = !hasDamageConstraint || dmg >= minDamage;
+        const costOk = !hasCostConstraint || cost <= maxEnergyCost;
+        return damageOk && costOk;
+      });
+
+      if (!qualifies) return false;
+    }
+
+    return true;
+  });
+}
+
+// ── re-ranking (semantic pass after hard filters) ─────────────────────────────
+
 async function rerank(originalQuery, intent, cards) {
   if (!cards.length) return cards;
 
@@ -183,21 +238,23 @@ async function rerank(originalQuery, intent, cards) {
     subtypes: c.subtypes,
     types: c.types,
     abilities: (c.abilities || []).map(a => `[${a.type}] ${a.name}: ${a.text}`),
-    attacks: (c.attacks || []).map(a => `${a.name}${a.damage ? ' (' + a.damage + ')' : ''}: ${a.text || ''}`),
+    attacks: (c.attacks || []).map(a =>
+      `${a.name} (cost:${a.convertedEnergyCost ?? a.cost?.length ?? '?'}, dmg:${a.damage || '0'}): ${a.text || ''}`
+    ),
     rules: c.rules || [],
+    retreatCost: c.retreatCost?.length ?? 0,
   }));
 
   const constraintNote = intent.constraints?.length
-    ? `This query has multiple simultaneous constraints that ALL must be satisfied: ${intent.constraints.join('; ')}. Exclude any card that satisfies only some constraints.`
+    ? `ALL of these constraints must be satisfied simultaneously: ${intent.constraints.join('; ')}. Exclude any card satisfying only some.`
     : '';
 
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
-Query intent: ${intent.type}${intent.named_card ? ` (target: ${intent.named_card})` : ''}${intent.archetype_name ? ` (archetype: ${intent.archetype_name})` : ''}
+Intent: ${intent.type}${intent.named_card ? ` (target: ${intent.named_card})` : ''}${intent.archetype_name ? ` (archetype: ${intent.archetype_name})` : ''}
 ${constraintNote}
 
-From the candidates below, return ONLY the IDs of cards that genuinely fulfill the search intent, in order of relevance (best first). Be strict — exclude partial matches.
-
-Return ONLY a JSON array of IDs, no markdown: ["id1", "id2", ...]
+Return ONLY the IDs of cards that genuinely fulfill the search intent, best first. Be strict.
+Return ONLY a JSON array of IDs, no markdown: ["id1","id2",...]
 
 Candidates:
 ${JSON.stringify(cardSummaries, null, 1)}`;
@@ -205,11 +262,7 @@ ${JSON.stringify(cardSummaries, null, 1)}`;
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
@@ -221,15 +274,13 @@ ${JSON.stringify(cardSummaries, null, 1)}`;
     const ids = JSON.parse(text.replace(/```json|```/g, '').trim());
     if (!Array.isArray(ids)) return cards;
 
-    // Re-order cards to match ranked order, drop excluded ones
     const idSet = new Set(ids);
     const cardMap = new Map(cards.map(c => [c.id, c]));
     const ranked = ids.map(id => cardMap.get(id)).filter(Boolean);
-    // Append any cards not mentioned by reranker at the end (safety net)
     const rest = cards.filter(c => !idSet.has(c.id));
     return [...ranked, ...rest];
   } catch {
-    return cards; // non-fatal: return original order
+    return cards;
   }
 }
 
@@ -243,7 +294,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v4:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v5:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   try {
     // ── cache hit ──
@@ -260,20 +311,16 @@ export default async function handler(req, res) {
       return res.status(200).json({ matches: filtered });
     }
 
-    // ── query intelligence ──
-    const [archetypes, intent] = await Promise.all([
-      getArchetypes().catch(() => []),
-      Promise.resolve(null) // placeholder, classified below with archetypes
-    ]);
-    const classifiedIntent = await classifyQuery(query, archetypes);
+    // ── classify query + fetch archetypes in parallel ──
+    const archetypes = await getArchetypes().catch(() => []);
+    const intent = await classifyQuery(query, archetypes);
 
-    // ── build expanded search query ──
-    let searchQuery = classifiedIntent.rewritten_query || query;
-
-    if (classifiedIntent.type === 'named_pokemon' && classifiedIntent.named_card) {
-      searchQuery = await buildNamedPokemonQuery(classifiedIntent, query);
-    } else if ((classifiedIntent.type === 'archetype' || classifiedIntent.type === 'counter') && classifiedIntent._archetype) {
-      searchQuery = buildArchetypeQuery(classifiedIntent, query);
+    // ── build enriched search query ──
+    let searchQuery = intent.rewritten_query || query;
+    if (intent.type === 'named_pokemon' && intent.named_card) {
+      searchQuery = await buildNamedPokemonQuery(intent, query);
+    } else if ((intent.type === 'archetype' || intent.type === 'counter') && intent._archetype) {
+      searchQuery = buildArchetypeQuery(intent);
     }
 
     // ── vector search ──
@@ -290,8 +337,11 @@ export default async function handler(req, res) {
       return true;
     });
 
-    // ── re-rank (enforces multi-constraint AND-logic, drops poor matches) ──
-    const reranked = await rerank(query, classifiedIntent, deduped);
+    // ── hard structured filters (numeric constraints, exclusions) ──
+    const hardFiltered = applyStructuredFilters(deduped, intent.criteria);
+
+    // ── semantic re-ranking ──
+    const reranked = await rerank(query, intent, hardFiltered);
 
     // ── feedback filter ──
     const filtered = await filterFlagged(query, reranked);
@@ -312,7 +362,6 @@ export default async function handler(req, res) {
     }
 
     cacheSet(cacheKey, results);
-
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
     res.setHeader('X-Cache', 'MISS');
     return res.status(200).json({ matches: results });
@@ -376,15 +425,12 @@ async function filterFlagged(query, cards) {
 
 async function vectorSearch(query, typeFilter) {
   if (!VECTOR_URL || !VECTOR_TOKEN) return [];
-
   const r = await fetch(`${VECTOR_URL}/query-data`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${VECTOR_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ data: query, topK: 100, includeMetadata: true })
   });
-
   if (!r.ok) return [];
-
   const data = await r.json();
   let results = (data.result || []).map(r => r.metadata).filter(Boolean);
   if (typeFilter) results = results.filter(c => (c.types || []).includes(typeFilter));
