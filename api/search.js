@@ -744,7 +744,7 @@ export default async function handler(req, res) {
       }
     }
 
-    write({ _done: true, _count: finalResults.length });
+    write({ _done: true, _count: finalResults.length, _debug: { intent: intent.type, criteria: intent.criteria, candidateCount: vectorCards.length, afterFilter: hardFiltered.length } });
     return res.end();
 
   } catch (err) {
