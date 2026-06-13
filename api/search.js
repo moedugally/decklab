@@ -396,8 +396,16 @@ export default async function handler(req, res) {
     cacheSet(cacheKey, results);
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
     res.setHeader('X-Cache', 'MISS');
-    res.setHeader('X-Debug', `vector:${cards.length},deduped:${deduped.length},filtered:${hardFiltered.length},reranked:${reranked.length},final:${results.length},intent:${intent.type}`);
-    return res.status(200).json({ matches: results });
+    const _debug = {
+      intent: intent.type,
+      criteria: intent.criteria,
+      vector: cards.length,
+      deduped: deduped.length,
+      hardFiltered: hardFiltered.length,
+      reranked: reranked.length,
+      final: results.length,
+    };
+    return res.status(200).json({ matches: results, _debug });
 
   } catch (err) {
     console.error(err);
