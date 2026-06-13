@@ -194,8 +194,11 @@ function applyStructuredFilters(cards, criteria) {
       if (excludeNames.some(n => cardNameLower.includes(n.toLowerCase()))) return false;
     }
 
-    // Supertype filter
-    if (requireSupertype && card.supertype?.toLowerCase() !== requireSupertype.toLowerCase()) return false;
+    // Supertype filter (normalize accent: "Pokémon" → "pokemon")
+    if (requireSupertype) {
+      const normalize = s => (s || '').toLowerCase().replace('é', 'e');
+      if (normalize(card.supertype) !== normalize(requireSupertype)) return false;
+    }
 
     // Energy type filter
     if (requireTypes?.length) {
