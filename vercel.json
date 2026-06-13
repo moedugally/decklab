@@ -4,6 +4,7 @@
     { "source": "/(.*)", "destination": "/public/$1" }
   ],
   "functions": {
-    "api/search.js": { "maxDuration": 30 }
+    "api/search.js":      { "maxDuration": 30 },
+    "api/build-stats.js": { "maxDuration": 60 }
   }
 }

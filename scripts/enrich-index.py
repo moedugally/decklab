@@ -6,6 +6,9 @@ strategic description, then upserts into Upstash Vector.
 
 Usage:
   ANTHROPIC_API_KEY=... UPSTASH_VECTOR_REST_URL=... UPSTASH_VECTOR_REST_TOKEN=... python3 scripts/enrich-index.py
+
+Optional flags:
+  --force   Re-index all cards even if already in the index
 """
 
 import json
@@ -13,9 +16,10 @@ import os
 import sys
 import time
 import urllib.request
+import urllib.parse
 import urllib.error
 
-# Load .env file from project root if present
+# Load .env from project root if present
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 if os.path.exists(env_path):
     with open(env_path) as f:
@@ -25,18 +29,18 @@ if os.path.exists(env_path):
                 k, v = line.split('=', 1)
                 os.environ.setdefault(k.strip(), v.strip())
 
-# ── config ──────────────────────────────────────────────────────────────────
-STANDARD_MARKS   = ['H', 'I', 'J']
-BATCH_SIZE       = 15      # cards per Claude call
-UPSERT_BATCH     = 50      # cards per vector upsert
-TCG_PAGE_SIZE    = 250
-CLAUDE_MODEL     = 'claude-haiku-4-5-20251001'
+# ── config ───────────────────────────────────────────────────────────────────
+STANDARD_MARKS = ['H', 'I', 'J']
+BATCH_SIZE     = 6      # cards per Claude call — smaller batches = richer output
+UPSERT_BATCH   = 50
+TCG_PAGE_SIZE  = 250
+CLAUDE_MODEL   = 'claude-haiku-4-5-20251001'
 
-ANTHROPIC_KEY    = os.environ.get('ANTHROPIC_API_KEY', '')
-VECTOR_URL       = os.environ.get('UPSTASH_VECTOR_REST_URL', '')
-VECTOR_TOKEN     = os.environ.get('UPSTASH_VECTOR_REST_TOKEN', '')
+ANTHROPIC_KEY  = os.environ.get('ANTHROPIC_API_KEY', '')
+VECTOR_URL     = os.environ.get('UPSTASH_VECTOR_REST_URL', '')
+VECTOR_TOKEN   = os.environ.get('UPSTASH_VECTOR_REST_TOKEN', '')
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# ── http helpers ──────────────────────────────────────────────────────────────
 def http_post(url, body, headers):
     data = json.dumps(body).encode()
     req  = urllib.request.Request(url, data=data, headers=headers, method='POST')
@@ -45,19 +49,20 @@ def http_post(url, body, headers):
 
 def http_get(url, headers=None):
     req = urllib.request.Request(url, headers=headers or {})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())
 
-# ── fetch cards ──────────────────────────────────────────────────────────────
+# ── fetch cards ───────────────────────────────────────────────────────────────
 def fetch_all_standard_cards():
     all_cards = []
     for mark in STANDARD_MARKS:
         page = 1
         while True:
             q   = f'regulationMark:{mark}'
-            url = f'https://api.pokemontcg.io/v2/cards?q={urllib.request.quote(q)}&pageSize={TCG_PAGE_SIZE}&page={page}'
+            url = (f'https://api.pokemontcg.io/v2/cards'
+                   f'?q={urllib.parse.quote(q)}&pageSize={TCG_PAGE_SIZE}&page={page}')
             try:
-                data  = http_get(url)
+                data  = http_get(url, headers={'User-Agent': 'decklab/1.0'})
                 cards = data.get('data', [])
                 all_cards.extend(cards)
                 print(f'  Mark {mark} page {page}: {len(cards)} cards')
@@ -69,56 +74,65 @@ def fetch_all_standard_cards():
                 break
     return all_cards
 
-# ── enrich with Claude ───────────────────────────────────────────────────────
-ENRICH_PROMPT = """You are a world-class competitive Pokémon TCG analyst. For each card below, generate a rich strategic description that will be used for semantic search. Be highly detailed and comprehensive.
+# ── enrichment prompt ─────────────────────────────────────────────────────────
+# Critical: descriptions must include exact numeric stats so the vector index
+# can surface cards for queries like "low energy high damage attacker".
+ENRICH_PROMPT = """You are a world-class competitive Pokémon TCG analyst. For each card below, write a rich strategic description for semantic search. Be highly specific and numeric.
 
-Include ALL of the following:
-- Exact mechanic description in plain language
-- Every player slang / shorthand term that describes this card or its effect (e.g. "gust", "pivot", "wall", "mill", "nuke", "spread", "snipe", "accelerate", "reborn", "draw", "search", "boss", "switch")
-- The archetype(s) this card belongs to or enables (e.g. spread damage deck, turbo energy deck, control, stall, aggro, lost zone box)
-- Specific synergies: name the cards or card types that combo with this one
-- What role it plays in a deck (attacker, support, energy acceleration, disruption, recovery, tech)
-- What problem it solves for a deck builder
-- Format context: is this a staple, tech, or niche card?
-- Any unique or notable interactions
+REQUIRED in every description:
+1. EXACT NUMBERS: List every attack's exact damage and energy cost (e.g. "deals 170 damage for 2 energy", "costs 1 Fire Energy for 80 damage"). Never omit damage numbers.
+2. PRIZE VALUE: State explicitly whether it's a 1-prize card (Basic, Stage 1, Stage 2 without ex/V/VSTAR) or 2-prize card (ex, V, VMAX, VSTAR).
+3. TCG SLANG: Use all applicable shorthand: pivot, wall, snipe, mill, gust, accelerate, turbo, spread, ohko, burst, stall, lock, heal, draw, search, reborn, finisher, tech, staple, tempo, 1-prize, chip.
+4. DECK ROLES: Attacker / support / energy-acceleration / disruption / recovery / wall / pivot / tech.
+5. ARCHETYPES: Name the specific decks or strategies this card fits into or enables.
+6. SYNERGIES: Name specific cards or card types that work well with this card.
+7. META CONTEXT: Staple / strong tech / niche / situational. Format tier if relevant.
+8. WHAT PROBLEM IT SOLVES for a deck builder.
 
-Return a JSON array, one object per card, in the same order as input:
-[{"id": "...", "enriched": "...detailed description..."}]
+Return a JSON array, one object per card, same order as input:
+[{"id": "...", "enriched": "...description..."}]
 
 Cards:
 """
 
-def enrich_batch(cards):
-    summaries = []
-    for c in cards:
-        parts = [f'{c["name"]} ({c.get("supertype","")}, {", ".join(c.get("subtypes") or [])})']
-        if c.get('abilities'):
-            parts.append('Abilities: ' + ' | '.join(
-                f'[{a["type"]}] {a["name"]}: {a["text"]}' for a in c['abilities']))
-        if c.get('attacks'):
-            parts.append('Attacks: ' + ' | '.join(
-                f'{a["name"]} ({a.get("damage","–")}): {a.get("text","")}' for a in c['attacks']))
-        if c.get('rules'):
-            parts.append('Rules: ' + ' | '.join(c['rules']))
-        parts.append(f'Set: {c.get("set",{}).get("name","")} | HP: {c.get("hp","")} | Types: {", ".join(c.get("types") or [])} | Rarity: {c.get("rarity","")}')
-        summaries.append({'id': c['id'], 'text': '\n'.join(parts)})
+def card_text(c):
+    parts = [f'{c["name"]} ({c.get("supertype","")}, {", ".join(c.get("subtypes") or [])})']
+    if c.get('abilities'):
+        parts.append('Abilities: ' + ' | '.join(
+            f'[{a["type"]}] {a["name"]}: {a["text"]}' for a in c['abilities']))
+    if c.get('attacks'):
+        atk_parts = []
+        for a in c['attacks']:
+            cost_count = len(a.get('cost') or [])
+            converted  = a.get('convertedEnergyCost', cost_count)
+            atk_parts.append(
+                f'{a["name"]} (cost:{converted} energy, dmg:{a.get("damage","0") or "0"}): {a.get("text","")}'
+            )
+        parts.append('Attacks: ' + ' | '.join(atk_parts))
+    if c.get('rules'):
+        parts.append('Rules: ' + ' | '.join(c['rules']))
+    retreat = len(c.get('retreatCost') or [])
+    parts.append(
+        f'Set: {c.get("set",{}).get("name","")} | '
+        f'HP: {c.get("hp","")} | '
+        f'Types: {", ".join(c.get("types") or [])} | '
+        f'Retreat cost: {retreat} | '
+        f'Rarity: {c.get("rarity","")}'
+    )
+    return '\n'.join(parts)
 
-    prompt = ENRICH_PROMPT + json.dumps(summaries, indent=1)
+def enrich_batch(cards):
+    summaries = [{'id': c['id'], 'text': card_text(c)} for c in cards]
+    prompt    = ENRICH_PROMPT + json.dumps(summaries, indent=1)
 
     for attempt in range(3):
         try:
             resp = http_post(
                 'https://api.anthropic.com/v1/messages',
-                {
-                    'model': CLAUDE_MODEL,
-                    'max_tokens': 4096,
-                    'messages': [{'role': 'user', 'content': prompt}]
-                },
-                {
-                    'Content-Type': 'application/json',
-                    'x-api-key': ANTHROPIC_KEY,
-                    'anthropic-version': '2023-06-01'
-                }
+                {'model': CLAUDE_MODEL, 'max_tokens': 8192,
+                 'messages': [{'role': 'user', 'content': prompt}]},
+                {'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY,
+                 'anthropic-version': '2023-06-01'}
             )
             text = ''.join(b.get('text', '') for b in resp.get('content', []))
             text = text.replace('```json', '').replace('```', '').strip()
@@ -128,57 +142,64 @@ def enrich_batch(cards):
             time.sleep(2 ** attempt)
     return {}
 
-# ── build vector record ──────────────────────────────────────────────────────
+# ── build vector record ───────────────────────────────────────────────────────
 def card_to_vector(card, enriched_desc):
-    raw_parts = [f'{card["name"]} ({card.get("supertype","")}, {", ".join(card.get("subtypes") or [])})']
-    if card.get('abilities'):
-        raw_parts.append('Abilities: ' + ' | '.join(
-            f'[{a["type"]}] {a["name"]}: {a["text"]}' for a in card['abilities']))
-    if card.get('attacks'):
-        raw_parts.append('Attacks: ' + ' | '.join(
-            f'{a["name"]} ({a.get("damage","–")}): {a.get("text","")}' for a in card['attacks']))
-    if card.get('rules'):
-        raw_parts.append('Rules: ' + ' | '.join(card['rules']))
-
-    raw_text = '\n'.join(raw_parts)
+    raw_text  = card_text(card)
     full_text = f'{raw_text}\n\nSTRATEGIC CONTEXT:\n{enriched_desc}' if enriched_desc else raw_text
 
+    # Pre-compute best-attack stats for fast numeric filtering in stat store
+    max_damage = 0
+    min_energy_for_best = 99
+    for atk in (card.get('attacks') or []):
+        try:
+            dmg  = int(''.join(c for c in str(atk.get('damage','0') or '0') if c.isdigit()) or '0')
+            cost_list = atk.get('cost') or []
+            cost = atk.get('convertedEnergyCost', len(cost_list))
+            if isinstance(cost, str):
+                cost = int(cost)
+            if dmg > max_damage or (dmg == max_damage and cost < min_energy_for_best):
+                max_damage = dmg
+                min_energy_for_best = cost
+        except (ValueError, TypeError):
+            pass
+
     return {
-        'id': card['id'],
+        'id':   card['id'],
         'data': full_text,
         'metadata': {
-            'id':             card['id'],
-            'name':           card['name'],
-            'supertype':      card.get('supertype', ''),
-            'subtypes':       card.get('subtypes') or [],
-            'types':          card.get('types') or [],
-            'abilities':      card.get('abilities') or [],
-            'attacks':        card.get('attacks') or [],
-            'rules':          card.get('rules') or [],
-            'setName':        card.get('set', {}).get('name', ''),
-            'rarity':         card.get('rarity', ''),
-            'regulationMark': card.get('regulationMark', ''),
-            'imageSmall':     (card.get('images') or {}).get('small', ''),
-            'imageLarge':     (card.get('images') or {}).get('large', ''),
-            'number':         card.get('number', ''),
-            'hp':             card.get('hp', ''),
-            'weaknesses':     card.get('weaknesses') or [],
-            'retreatCost':    card.get('retreatCost') or [],
-            'legalities':     card.get('legalities') or {},
+            'id':              card['id'],
+            'name':            card['name'],
+            'supertype':       card.get('supertype', ''),
+            'subtypes':        card.get('subtypes') or [],
+            'types':           card.get('types') or [],
+            'abilities':       card.get('abilities') or [],
+            'attacks':         card.get('attacks') or [],
+            'rules':           card.get('rules') or [],
+            'setName':         card.get('set', {}).get('name', ''),
+            'rarity':          card.get('rarity', ''),
+            'regulationMark':  card.get('regulationMark', ''),
+            'imageSmall':      (card.get('images') or {}).get('small', ''),
+            'imageLarge':      (card.get('images') or {}).get('large', ''),
+            'number':          card.get('number', ''),
+            'hp':              card.get('hp', ''),
+            'weaknesses':      card.get('weaknesses') or [],
+            'retreatCost':     card.get('retreatCost') or [],
+            'legalities':      card.get('legalities') or {},
+            # Pre-computed stat fields (used by stat store filter in search.js)
+            'maxDamage':             max_damage,
+            'minEnergyForBestAtk':   min_energy_for_best if max_damage > 0 else 99,
+            'retreatCount':          len(card.get('retreatCost') or []),
         }
     }
 
-# ── upsert to vector index ───────────────────────────────────────────────────
+# ── upsert to vector index ────────────────────────────────────────────────────
 def upsert_vectors(records):
     for attempt in range(3):
         try:
             http_post(
                 f'{VECTOR_URL}/upsert-data',
                 records,
-                {
-                    'Authorization': f'Bearer {VECTOR_TOKEN}',
-                    'Content-Type': 'application/json'
-                }
+                {'Authorization': f'Bearer {VECTOR_TOKEN}', 'Content-Type': 'application/json'}
             )
             return
         except Exception as e:
@@ -189,7 +210,7 @@ def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i+n]
 
-# ── main ─────────────────────────────────────────────────────────────────────
+# ── main ──────────────────────────────────────────────────────────────────────
 def main():
     if not ANTHROPIC_KEY:
         print('ERROR: ANTHROPIC_API_KEY not set'); sys.exit(1)
@@ -204,34 +225,35 @@ def main():
     total      = len(cards)
     processed  = 0
     vector_buf = []
+    enriched   = 0
 
     for batch in chunks(cards, BATCH_SIZE):
         print(f'Enriching cards {processed+1}–{processed+len(batch)} / {total}...')
-        enrichments = enrich_batch(batch)
+        descriptions = enrich_batch(batch)
+        enriched += len(descriptions)
 
         for card in batch:
-            desc   = enrichments.get(card['id'], '')
+            desc   = descriptions.get(card['id'], '')
             record = card_to_vector(card, desc)
             vector_buf.append(record)
 
         processed += len(batch)
 
-        # Upsert in bulk when buffer is large enough
         if len(vector_buf) >= UPSERT_BATCH:
-            print(f'  Upserting {len(vector_buf)} records to vector index...')
+            print(f'  Upserting {len(vector_buf)} records...')
             for chunk in chunks(vector_buf, 100):
                 upsert_vectors(chunk)
             vector_buf = []
 
-        time.sleep(0.3)  # be kind to APIs
+        time.sleep(0.3)
 
-    # Flush remaining
     if vector_buf:
         print(f'  Upserting final {len(vector_buf)} records...')
         for chunk in chunks(vector_buf, 100):
             upsert_vectors(chunk)
 
-    print(f'\n✓ Done. {total} cards enriched and indexed.')
+    print(f'\n✓ Done. {total} cards indexed, {enriched} enriched with strategic descriptions.')
+    print('\nNext step: run POST /api/build-stats to populate the numeric stat store in Redis.')
 
 if __name__ == '__main__':
     main()

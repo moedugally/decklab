@@ -1,28 +1,67 @@
 import { getArchetypes, findArchetype } from './archetypes.js';
 
-// Update STANDARD_MARKS each May rotation (3 most recent regulation letters)
 const STANDARD_MARKS = ['H', 'I', 'J'];
 
 const TCG_SLANG = {
-  'gust': 'switch opponent active pokemon with benched pokemon boss orders',
-  'gust effect': 'switch opponent active pokemon with benched pokemon boss orders',
-  'pivot': 'switch your active pokemon with benched pokemon free retreat cost zero',
-  'wall': 'reduce damage taken prevent damage defender ability',
-  'snipe': 'damage benched pokemon directly',
-  'mill': 'discard cards from opponent deck',
-  'draw supporter': 'draw cards from deck supporter',
-  'nuke': 'high damage attack knock out',
-  'accelerate': 'attach energy from discard pile hand',
-  'reborn': 'revive pokemon from discard pile',
+  // Control / Disruption
+  'gust':              'switch opponent active pokemon with benched pokemon boss orders gust effect',
+  'gust effect':       'switch opponent active pokemon with benched pokemon boss orders',
+  'mill':              'discard cards from opponent deck deck-out win condition milling',
+  'hand disruption':   'reduce opponent hand size discard cards iono supporter hand reset',
+  'lock':              'prevent opponent playing cards ability lock item lock stadium lock control',
+  'ability lock':      'shut off pokemon abilities path to the peak nullify iono ability block',
+  'item lock':         'prevent trainer item cards from being played item block control',
+  'stadium lock':      'prevent stadiums from being played lock control disruption',
+  // Mobility
+  'pivot':             'switch your active pokemon with benched free retreat cost zero escape rope',
+  'free retreat':      'retreat cost zero switch active benched pivot no energy cost',
+  'switch':            'switch active benched pokemon mobility pivot free retreat escape rope',
+  // Defense
+  'wall':              'reduce damage taken prevent damage high hp damage reduction defender ability',
+  'stall':             'stall strategy defensive high hp wall 1 prize prevent damage time out',
+  'tank':              'high hp damage reduction wall survive multiple hits bulky defender',
+  'bench protection':  'prevent damage to benched pokemon bench barrier defender protection shield',
+  'damage reduction':  'reduce incoming damage wall defender ability resistance',
+  // Offense
+  'snipe':             'damage benched pokemon directly bench sniper targeted bench damage',
+  'spread':            'damage all pokemon on opponent field bench spread attack',
+  'nuke':              'high damage attack one shot knock out ohko burst finisher',
+  'ohko':              'one hit knock out high damage 280+ burst attacker finisher',
+  'burst':             'high damage low energy one shot attacker efficient knockout',
+  'chip':              'small damage chip shot soften targets weaken setup attacker',
+  // Energy
+  'accelerate':        'attach energy from discard pile hand acceleration turbo fast setup',
+  'turbo':             'attach energy quickly energy acceleration fast setup multiple per turn',
+  'energy acceleration': 'attach energy from discard hand deck multiple per turn turbo setup',
+  // Recovery
+  'reborn':            'revive pokemon from discard pile resurrection recovery bring back',
+  'recovery':          'retrieve cards from discard pile restoration salvage',
+  'heal':              'remove damage counters restore HP healing recovery ice cream moomoo',
+  // Drawing / Searching
+  'draw supporter':    'draw cards from deck supporter professor iono lillie draw power',
+  'search':            'search deck for pokemon trainer energy ball nest hyper ultra',
+  'consistency':       'draw search thin deck set up reliably supporter ball consistency',
+  'thin':              'deck thinning draw consistency search supporter',
+  // Roles
+  '1 prize':           'single prize pokemon basic stage 1 stage 2 non-ex non-v non-vmax one prize attacker',
+  'one prize':         'single prize pokemon non-ex non-v non-vmax basic stage 1 attacker',
+  '2 prize':           'two prize ex v vmax vstar pokemon ex giver',
+  'two prize':         'two prize ex v vmax vstar pokemon',
+  'tech':              'tech option situational counter single copy toolbox silver bullet',
+  'staple':            'staple must-play every deck universal consistency core card',
+  'finisher':          'high damage closing attacker knock out last prize game ender',
+  'setup':             'bench setup ability draw search evolution chain preparation',
+  'tempo':             'fast aggressive tempo attacker quick setup prize trade efficiency',
 };
 
-const KV_URL = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const VECTOR_URL = process.env.UPSTASH_VECTOR_REST_URL;
+const KV_URL    = process.env.KV_REST_API_URL;
+const KV_TOKEN  = process.env.KV_REST_API_TOKEN;
+const VECTOR_URL   = process.env.UPSTASH_VECTOR_REST_URL;
 const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const CACHE_TTL = 60 * 60 * 24 * 30;
 const NEGATIVE_THRESHOLD = 1;
+const STATS_KEY = 'statsindex';
 
 // ── cache ─────────────────────────────────────────────────────────────────────
 
@@ -41,13 +80,50 @@ async function cacheGet(key) {
 
 async function cacheSet(key, value) {
   if (!KV_URL || !KV_TOKEN) return;
+  fetch(`${KV_URL}/pipeline`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify([['SET', key, JSON.stringify(value), 'EX', CACHE_TTL]])
+  }).catch(() => {});
+}
+
+
+// ── stat store ────────────────────────────────────────────────────────────────
+// Pre-built index of every card's numeric stats (see api/build-stats.js).
+// Used to augment vector search for numeric constraint queries — ensures cards
+// like "Greninja ex (170 dmg / 2 energy)" are never missed due to semantic ranking.
+
+async function getStatStore() {
+  if (!KV_URL || !KV_TOKEN) return null;
   try {
-    await fetch(`${KV_URL}/pipeline`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([['SET', key, JSON.stringify(value), 'EX', CACHE_TTL]])
+    const r = await fetch(`${KV_URL}/get/${encodeURIComponent(STATS_KEY)}`, {
+      headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
-  } catch { /* non-fatal */ }
+    const d = await r.json();
+    return d.result ? JSON.parse(d.result) : null;
+  } catch { return null; }
+}
+
+function statStoreFilter(store, criteria) {
+  if (!store || !criteria) return [];
+  const { minDamage, maxEnergyCost, maxRetreatCost, requireSupertype, requireTypes } = criteria;
+
+  const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+
+  return store.filter(c => {
+    if (requireSupertype && norm(c.supertype) !== norm(requireSupertype)) return false;
+    if (requireTypes?.length && !requireTypes.some(t => (c.types || []).includes(t))) return false;
+    if (maxRetreatCost !== null && maxRetreatCost !== undefined && c.retreatCount > maxRetreatCost) return false;
+
+    const hasDmg  = minDamage !== null && minDamage !== undefined;
+    const hasCost = maxEnergyCost !== null && maxEnergyCost !== undefined;
+    if (!hasDmg && !hasCost) return true;
+    if (!c.maxDamage && hasDmg) return false;
+
+    const dmgOk  = !hasDmg  || c.maxDamage >= minDamage;
+    const costOk = !hasCost || c.minEnergyForBestAtk <= maxEnergyCost;
+    return dmgOk && costOk;
+  });
 }
 
 // ── query intelligence ─────────────────────────────────────────────────────────
@@ -73,37 +149,48 @@ Return this exact JSON shape:
     "minDamage": <minimum damage number for any single attack, or null>,
     "maxEnergyCost": <maximum convertedEnergyCost for that attack, or null>,
     "maxRetreatCost": <max retreat cost count, or null>,
-    "excludeNames": ["<names of Pokémon/cards to EXCLUDE from results — always include named_card here for counter/named_pokemon queries>"],
+    "excludeNames": ["<names to EXCLUDE — always include named_card here for counter/named_pokemon queries>"],
     "requireSupertype": "<'pokemon'|'trainer'|'energy'|null>",
     "requireTypes": ["<energy types like 'Fire','Water' if specified, else []>"]
   },
-  "rewritten_query": "<CRITICAL: describe the SOLUTION CARDS you're looking for, NOT the target Pokémon. For named_pokemon queries, describe the mechanic/effect needed (e.g. 'trainer cards and abilities that remove damage counters or restore HP, healing supporters, recovery items'). Never mention the target Pokémon's name in this field. 2-4 sentences about what the ideal result card does.>"
+  "rewritten_query": "<CRITICAL: describe the SOLUTION CARDS you're looking for, NOT the target Pokémon. 2-4 sentences about what the ideal result card does.>",
+  "alternative_queries": ["<alternate semantic phrasing — focus on numeric stats and role>", "<alternate phrasing — focus on deck synergy and archetype context>"]
 }
 
-Examples:
-- "heal crustle" → rewritten_query: "trainer cards and pokemon abilities that heal damage counters or restore HP to any pokemon. Recovery supporters, healing items, abilities that remove damage."
-- "low energy high damage" → minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon attacker with high damage output for minimal energy cost, efficient damage dealer, strong attack low cost"
-- "1 energy attacker" → minDamage: 100, maxEnergyCost: 1
+Rules:
+- "low energy" always means maxEnergyCost 1 or 2 MAX. Never set maxEnergyCost above 2 for "low energy" queries.
 - "cheap attacker" → minDamage: 120, maxEnergyCost: 2
-- IMPORTANT: "low energy" means maxEnergyCost 1 or 2 MAX. Never set maxEnergyCost above 2 for any "low energy" query.
-- "counter lost box" → rewritten_query: "cards that disrupt lost zone strategies, prevent lost zone damage, path to the peak ability lock, prize denial counters"
-- "heal mega kangaskhan" → excludeNames: ["Kangaskhan","Mega Kangaskhan"], rewritten_query: "healing trainer cards, damage counter removal, HP restoration supporters and items, recovery mechanics"
+- "1 energy attacker" → minDamage: 100, maxEnergyCost: 1
+- "heal <pokemon>" → excludeNames: ["<pokemon>"], rewritten_query describes healing cards, NOT the pokemon
+- alternative_queries must be genuinely different angles (one stat-focused, one role/synergy-focused)
+
+Examples:
+- "heal crustle" → type: named_pokemon, excludeNames: ["Crustle"], rewritten_query: "trainer cards and abilities that remove damage counters or restore HP. Healing supporters, recovery items, damage removal."
+- "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon attacker with high damage for minimal energy cost, efficient damage dealer", alternative_queries: ["2 energy 130+ damage pokemon knockout attacker", "cheap cost powerful attack 1-2 energy efficient pokemon"]
+- "counter lost box" → rewritten_query: "cards that disrupt lost zone strategies, prevent lost zone damage, ability lock, prize denial", alternative_queries: ["path to the peak ability lock disruption control", "interrupt lost zone engine denial tech card"]
+- "heal mega kangaskhan" → excludeNames: ["Kangaskhan","Mega Kangaskhan"], rewritten_query: "healing trainer cards, damage counter removal, HP restoration supporters and items"
 
 User query: `;
 
 async function classifyQuery(query, archetypes) {
   const lq = query.trim().toLowerCase();
 
-  // Fast path: pure TCG slang
   if (TCG_SLANG[lq]) {
     return {
-      type: 'general',
-      named_card: null,
-      archetype_name: null,
-      constraints: [],
+      type: 'general', named_card: null, archetype_name: null, constraints: [],
       criteria: { minDamage: null, maxEnergyCost: null, maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [] },
-      rewritten_query: `${query} ${TCG_SLANG[lq]}`
+      rewritten_query: `${query} ${TCG_SLANG[lq]}`,
+      alternative_queries: [],
     };
+  }
+
+  // Expand slang terms found within a longer query
+  let expandedQuery = query;
+  for (const [slang, expansion] of Object.entries(TCG_SLANG)) {
+    if (lq.includes(slang)) {
+      expandedQuery = `${query} ${expansion}`;
+      break;
+    }
   }
 
   const archetypeMatch = findArchetype(archetypes, lq);
@@ -114,15 +201,19 @@ async function classifyQuery(query, archetypes) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
-        messages: [{ role: 'user', content: INTENT_PROMPT + `"${query}"` }]
+        max_tokens: 700,
+        messages: [{ role: 'user', content: INTENT_PROMPT + `"${expandedQuery}"` }]
       })
     });
     const data = await r.json();
     const text = data.content?.map(b => b.text || '').join('') || '';
     const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-    if (!parsed.criteria) parsed.criteria = { minDamage: null, maxEnergyCost: null, maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [] };
-    if (!parsed.criteria.excludeNames) parsed.criteria.excludeNames = [];
+    if (!parsed.criteria) parsed.criteria = {};
+    const c = parsed.criteria;
+    if (!c.excludeNames)    c.excludeNames    = [];
+    if (!c.requireTypes)    c.requireTypes    = [];
+    if (c.requireSupertype == null) c.requireSupertype = null;
+    if (!parsed.alternative_queries) parsed.alternative_queries = [];
 
     if (archetypeMatch && (parsed.type === 'archetype' || parsed.type === 'counter')) {
       parsed._archetype = archetypeMatch;
@@ -130,17 +221,14 @@ async function classifyQuery(query, archetypes) {
     return parsed;
   } catch {
     return {
-      type: 'general',
-      named_card: null,
-      archetype_name: null,
-      constraints: [],
+      type: 'general', named_card: null, archetype_name: null, constraints: [],
       criteria: { minDamage: null, maxEnergyCost: null, maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [] },
-      rewritten_query: query
+      rewritten_query: expandedQuery,
+      alternative_queries: [],
     };
   }
 }
 
-// Look up a named Pokémon in the vector index to get its real attributes
 async function lookupCardData(cardName) {
   if (!VECTOR_URL || !VECTOR_TOKEN) return null;
   try {
@@ -157,20 +245,13 @@ async function lookupCardData(cardName) {
 
 async function buildNamedPokemonQuery(intent, originalQuery) {
   const cardData = await lookupCardData(intent.named_card);
-
-  // rewritten_query describes the solution cards (e.g. "healing trainers, damage removal")
-  // cardData traits are appended as context for what the target pokemon needs
   const base = intent.rewritten_query || originalQuery;
-
   if (!cardData) return base;
-
   const traits = [
     cardData.types?.length ? `${cardData.types.join('/')} type` : '',
     cardData.subtypes?.length ? cardData.subtypes.join(' ') : '',
     ...(cardData.abilities || []).map(a => `"${a.name}": ${a.text}`),
   ].filter(Boolean).join('. ');
-
-  // Lead with the mechanic description, trail with target context
   return `${base} Compatible with: ${cardData.name}${traits ? ` (${traits})` : ''}.`;
 }
 
@@ -184,75 +265,90 @@ function buildArchetypeQuery(intent) {
   return `${base} ${intent.rewritten_query}`;
 }
 
-// ── structured code-level filtering (hard numeric constraints) ─────────────────
+// ── Reciprocal Rank Fusion ────────────────────────────────────────────────────
+// Merges multiple ranked result sets. Cards appearing in multiple sets score
+// higher. k=60 is the standard RRF constant (dampens top-rank dominance).
+
+function mergeRRF(resultSets, k = 60) {
+  const scores  = new Map();
+  const cardById = new Map();
+  for (const results of resultSets) {
+    results.forEach((card, rank) => {
+      scores.set(card.id, (scores.get(card.id) || 0) + 1 / (k + rank + 1));
+      if (!cardById.has(card.id)) cardById.set(card.id, card);
+    });
+  }
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => cardById.get(id));
+}
+
+// ── structured filters ────────────────────────────────────────────────────────
 
 function applyStructuredFilters(cards, criteria) {
   if (!criteria) return cards;
   const { minDamage, maxEnergyCost, maxRetreatCost, excludeNames, requireSupertype, requireTypes } = criteria;
+  const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
 
   return cards.filter(card => {
-    // Exclude named cards (e.g. don't return Crustle when searching "heal crustle")
     if (excludeNames?.length) {
-      const cardNameLower = card.name?.toLowerCase() || '';
-      if (excludeNames.some(n => cardNameLower.includes(n.toLowerCase()))) return false;
+      const nameLower = card.name?.toLowerCase() || '';
+      if (excludeNames.some(n => nameLower.includes(n.toLowerCase()))) return false;
     }
-
-    // Supertype filter — strip diacritics so "Pokémon" === "pokemon"
-    if (requireSupertype) {
-      const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/̀-ͯ/g, '').replace(/[^a-z]/g, '');
-      if (norm(card.supertype) !== norm(requireSupertype)) return false;
-    }
-
-    // Energy type filter
-    if (requireTypes?.length) {
-      if (!requireTypes.some(t => (card.types || []).includes(t))) return false;
-    }
-
-    // Retreat cost filter
+    if (requireSupertype && norm(card.supertype) !== norm(requireSupertype)) return false;
+    if (requireTypes?.length && !requireTypes.some(t => (card.types || []).includes(t))) return false;
     if (maxRetreatCost !== null && maxRetreatCost !== undefined) {
-      const retreat = card.retreatCost?.length ?? 99;
-      if (retreat > maxRetreatCost) return false;
+      if ((card.retreatCost?.length ?? 99) > maxRetreatCost) return false;
     }
 
-    // Attack damage + energy cost filter — card passes if ANY attack satisfies BOTH constraints
-    const hasDamageConstraint = minDamage !== null && minDamage !== undefined;
-    const hasCostConstraint = maxEnergyCost !== null && maxEnergyCost !== undefined;
+    const hasDmg  = minDamage !== null && minDamage !== undefined;
+    const hasCost = maxEnergyCost !== null && maxEnergyCost !== undefined;
+    if (!hasDmg && !hasCost) return true;
 
-    if (hasDamageConstraint || hasCostConstraint) {
-      const attacks = card.attacks || [];
-      // If it's a trainer/energy with no attacks, only fail if we specifically need damage
-      if (!attacks.length) return !hasDamageConstraint;
+    const attacks = card.attacks || [];
+    if (!attacks.length) return !hasDmg;
 
-      const qualifies = attacks.some(a => {
-        const dmg = parseInt((a.damage || '').replace(/[^0-9]/g, '')) || 0;
-        // convertedEnergyCost may be stored as string in vector metadata
-        const rawCost = a.convertedEnergyCost;
-        const cost = rawCost !== null && rawCost !== undefined
-          ? parseInt(rawCost, 10)
-          : (Array.isArray(a.cost) ? a.cost.length : 0);
-        const damageOk = !hasDamageConstraint || dmg >= minDamage;
-        const costOk = !hasCostConstraint || cost <= maxEnergyCost;
-        return damageOk && costOk;
-      });
-
-      if (!qualifies) return false;
-    }
-
-    return true;
+    return attacks.some(a => {
+      const dmg  = parseInt((a.damage || '').replace(/[^0-9]/g, '')) || 0;
+      const raw  = a.convertedEnergyCost;
+      const cost = raw !== null && raw !== undefined
+        ? parseInt(raw, 10)
+        : (Array.isArray(a.cost) ? a.cost.length : 0);
+      return (!hasDmg || dmg >= minDamage) && (!hasCost || cost <= maxEnergyCost);
+    });
   });
 }
 
-// ── re-ranking (semantic pass after hard filters) ─────────────────────────────
+// ── positive feedback boost ───────────────────────────────────────────────────
+
+async function getPositiveIds(query, cardIds) {
+  if (!KV_URL || !KV_TOKEN || !cardIds.length) return new Set();
+  try {
+    const keys = cardIds.map(id => `feedback:${query.trim().toLowerCase()}:${id}:positive`);
+    const r = await fetch(`${KV_URL}/pipeline`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(keys.map(k => ['GET', k]))
+    });
+    const results = await r.json();
+    return new Set(
+      cardIds.filter((_, i) => parseInt(results[i]?.result || '0', 10) > 0)
+    );
+  } catch { return new Set(); }
+}
+
+// ── re-ranking ────────────────────────────────────────────────────────────────
+// Uses Sonnet for complex multi-constraint / counter queries (better reasoning),
+// Haiku for simpler named_pokemon / synergy / budget queries (faster + cheaper).
 
 async function rerank(originalQuery, intent, cards) {
   if (!cards.length) return cards;
 
+  const usesSonnet = ['multi_constraint', 'counter'].includes(intent.type);
+  const model = usesSonnet ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001';
+
   const cardSummaries = cards.map(c => ({
-    id: c.id,
-    name: c.name,
-    supertype: c.supertype,
-    subtypes: c.subtypes,
-    types: c.types,
+    id: c.id, name: c.name, supertype: c.supertype, subtypes: c.subtypes, types: c.types,
     abilities: (c.abilities || []).map(a => `[${a.type}] ${a.name}: ${a.text}`),
     attacks: (c.attacks || []).map(a =>
       `${a.name} (cost:${a.convertedEnergyCost ?? a.cost?.length ?? '?'}, dmg:${a.damage || '0'}): ${a.text || ''}`
@@ -262,7 +358,7 @@ async function rerank(originalQuery, intent, cards) {
   }));
 
   const constraintNote = intent.constraints?.length
-    ? `ALL of these constraints must be satisfied simultaneously: ${intent.constraints.join('; ')}. Exclude any card satisfying only some.`
+    ? `ALL constraints must be satisfied simultaneously: ${intent.constraints.join('; ')}. Exclude any card satisfying only some.`
     : '';
 
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
@@ -279,21 +375,14 @@ ${JSON.stringify(cardSummaries, null, 1)}`;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await r.json();
     const text = data.content?.map(b => b.text || '').join('') || '';
     const ids = JSON.parse(text.replace(/```json|```/g, '').trim());
     if (!Array.isArray(ids)) return cards;
-
     const cardMap = new Map(cards.map(c => [c.id, c]));
     const ranked = ids.map(id => cardMap.get(id)).filter(Boolean);
-    // Only return what the re-ranker confirmed — don't append unranked cards
-    // If re-ranker returned nothing, fall back to original set
     return ranked.length > 0 ? ranked : cards;
   } catch {
     return cards;
@@ -310,50 +399,97 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v6:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v7:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.status(200);
+
+  const write = (obj) => { try { res.write(JSON.stringify(obj) + '\n'); } catch {} };
 
   try {
     // ── cache hit ──
     const cached = await cacheGet(cacheKey);
     if (cached) {
       const filtered = await filterFlagged(query, cached);
-      const pinned = await getPinned(query);
-      const filteredPinned = await filterFlagged(query, pinned);
+      const pinned   = await getPinned(query);
+      const pinnedFiltered = await filterFlagged(query, pinned);
       const existingIds = new Set(filtered.map(m => m.id));
-      for (const c of filteredPinned) {
+      for (const c of pinnedFiltered) {
         if (!existingIds.has(c.id)) filtered.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
       }
-      res.setHeader('X-Cache', 'HIT');
-      return res.status(200).json({ matches: filtered });
+      // Boost positive-feedback cards to front
+      const posIds = await getPositiveIds(query, filtered.map(m => m.id));
+      if (posIds.size) {
+        filtered.sort((a, b) => (posIds.has(b.id) ? 1 : 0) - (posIds.has(a.id) ? 1 : 0));
+      }
+      for (const match of filtered) write(match);
+      write({ _done: true, _count: filtered.length, _cache: 'HIT' });
+      return res.end();
     }
 
-    // ── classify query (fetch archetypes only if likely needed) ──
-    // Do a fast pre-check: only pull Limitless data for archetype/counter queries
+    // ── classify query ──
     const lqPre = query.toLowerCase();
     const likelyNeedsArchetypes = /\b(deck|list|build|counter|beat|against)\b/.test(lqPre);
-    const archetypes = likelyNeedsArchetypes ? await getArchetypes().catch(() => []) : [];
+    const [archetypes] = await Promise.all([
+      likelyNeedsArchetypes ? getArchetypes().catch(() => []) : Promise.resolve([])
+    ]);
     const intent = await classifyQuery(query, archetypes);
 
-    // ── build enriched search query + vector search in parallel ──
-    // For named_pokemon we need card data first, so those run sequentially.
-    // For everything else, start vector search immediately with the rewritten query.
-    let searchQuery = intent.rewritten_query || query;
-
+    // ── build search queries ──
+    let primaryQuery = intent.rewritten_query || query;
     if (intent.type === 'named_pokemon' && intent.named_card) {
-      searchQuery = await buildNamedPokemonQuery(intent, query);
+      primaryQuery = await buildNamedPokemonQuery(intent, query);
     } else if ((intent.type === 'archetype' || intent.type === 'counter') && intent._archetype) {
-      searchQuery = buildArchetypeQuery(intent);
+      primaryQuery = buildArchetypeQuery(intent);
     }
 
-    // ── vector search — wider net for numeric constraint queries ──
-    const topK = intent.type === 'multi_constraint' ? 250 : 100;
-    const cards = await vectorSearch(searchQuery, typeFilter, topK);
-    if (!cards.length) return res.status(200).json({ matches: [], _debug: 'no vector results' });
+    // Build alternative query list: primary + up to 2 from intent
+    const altQueries = (intent.alternative_queries || []).slice(0, 2);
+    const allQueries = [primaryQuery, ...altQueries];
+
+    // ── parallel vector searches (RRF merge) ──
+    const resultSets = await Promise.all(
+      allQueries.map(q => vectorSearch(q, typeFilter, 100))
+    );
+    const vectorCards = mergeRRF(resultSets);
+
+    // ── stat store augmentation for numeric constraint queries ──
+    // Guarantees cards that qualify by exact stats are never missed due to semantic ranking
+    let cards = vectorCards;
+    const hasNumericConstraints = intent.type === 'multi_constraint' &&
+      (intent.criteria?.minDamage || intent.criteria?.maxEnergyCost);
+
+    if (hasNumericConstraints) {
+      const statStore = await getStatStore();
+      if (statStore) {
+        const statMatches = statStoreFilter(statStore, intent.criteria);
+        const vectorIds = new Set(vectorCards.map(c => c.id));
+        // Convert stat store entries to the same shape as vector results
+        const newFromStats = statMatches
+          .filter(s => !vectorIds.has(s.id))
+          .map(s => ({
+            id: s.id, name: s.name, supertype: s.supertype, subtypes: s.subtypes,
+            types: s.types, abilities: s.abilities, attacks: s.attacks, rules: s.rules,
+            setName: s.setName, rarity: '', regulationMark: s.regulationMark,
+            imageSmall: s.imageSmall, imageLarge: s.imageLarge, number: s.number,
+            hp: String(s.hp), weaknesses: s.weaknesses, retreatCost: s.retreatCost,
+            legalities: s.legalities,
+          }));
+        cards = [...vectorCards, ...newFromStats];
+      }
+    }
+
+    if (!cards.length) {
+      write({ _done: true, _count: 0 });
+      return res.end();
+    }
 
     // ── dedupe ──
     const seen = new Set();
     const deduped = cards.filter(c => {
-      const norm = (s) => (s || '').toLowerCase().replace('é', 'e');
+      const norm = s => (s || '').toLowerCase().replace('é', 'e');
       const isPokemon = !['trainer', 'energy'].includes(norm(c.supertype));
       const key = isPokemon ? `${c.name}|${c.setName}` : c.name;
       if (seen.has(key)) return false;
@@ -361,59 +497,72 @@ export default async function handler(req, res) {
       return true;
     });
 
-    // ── hard structured filters (numeric constraints, exclusions) ──
-    // Two-level fallback: first try full criteria, then drop numeric constraints,
-    // then abandon all filters if needed — always return at least the deduped set
+    // ── hard structured filters ──
     const hardFiltered = (() => {
       const f1 = applyStructuredFilters(deduped, intent.criteria);
       if (f1.length > 0) return f1;
       const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
       if (f2.length > 0) return f2;
-      return deduped; // abandon all filters rather than return empty
+      return deduped;
     })();
 
-    // ── semantic re-ranking (skip for general queries — saves ~2s) ──
+    // ── feedback filtering + positive boost ──
+    const preFiltered = await filterFlagged(query, hardFiltered);
+    const safePreFiltered = preFiltered.length > 0 ? preFiltered : hardFiltered;
+
+    const posIds = await getPositiveIds(query, safePreFiltered.map(c => c.id));
+    const boosted = posIds.size
+      ? [...safePreFiltered.filter(c => posIds.has(c.id)), ...safePreFiltered.filter(c => !posIds.has(c.id))]
+      : safePreFiltered;
+
+    // ── stream initial results immediately ──
+    const initialResults = boosted.map(c => ({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) }));
+    for (const match of initialResults) write(match);
+
+    // ── semantic re-ranking (runs after initial results streamed) ──
     const needsRerank = ['named_pokemon', 'multi_constraint', 'counter', 'synergy', 'budget'].includes(intent.type);
-    const reranked = needsRerank ? await rerank(query, intent, hardFiltered) : hardFiltered;
+    let finalResults = initialResults;
 
-    // ── feedback filter ──
-    const filtered = await filterFlagged(query, reranked);
+    if (needsRerank && hardFiltered.length > 0) {
+      const reranked = await rerank(query, intent, hardFiltered);
+      const filteredReranked = await filterFlagged(query, reranked);
+      const safeReranked = filteredReranked.length > 0 ? filteredReranked : reranked;
 
-    // Final safety: if feedback filter wiped everything, use pre-filter results
-    const safeFiltered = filtered.length > 0 ? filtered : reranked;
+      // Apply positive boost to re-ranked set too
+      const rerankedBoosted = posIds.size
+        ? [...safeReranked.filter(c => posIds.has(c.id)), ...safeReranked.filter(c => !posIds.has(c.id))]
+        : safeReranked;
 
-    const results = safeFiltered.map(c => ({
-      id: c.id,
-      name: c.name,
-      relevance: 'high',
-      card: normalizeCard(c)
-    }));
+      // Stream any new cards the re-ranker surfaced
+      const streamedIds = new Set(initialResults.map(m => m.id));
+      for (const c of rerankedBoosted) {
+        if (!streamedIds.has(c.id)) write({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
+      }
+
+      write({ _reorder: rerankedBoosted.map(c => c.id) });
+      finalResults = rerankedBoosted.map(c => ({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) }));
+    }
 
     // ── pinned cards ──
     const pinned = await getPinned(query);
-    const filteredPinned = await filterFlagged(query, pinned);
-    const existingIds = new Set(results.map(m => m.id));
-    for (const c of filteredPinned) {
-      if (!existingIds.has(c.id)) results.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
+    const pinnedFiltered = await filterFlagged(query, pinned);
+    const allStreamedIds = new Set(finalResults.map(m => m.id));
+    for (const c of pinnedFiltered) {
+      if (!allStreamedIds.has(c.id)) {
+        const match = { id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) };
+        finalResults.push(match);
+        write(match);
+      }
     }
 
-    if (results.length > 0) cacheSet(cacheKey, results);
-    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
-    res.setHeader('X-Cache', 'MISS');
-    const _debug = {
-      intent: intent.type,
-      criteria: intent.criteria,
-      vector: cards.length,
-      deduped: deduped.length,
-      hardFiltered: hardFiltered.length,
-      reranked: reranked.length,
-      final: results.length,
-    };
-    return res.status(200).json({ matches: results, _debug });
+    if (finalResults.length > 0) cacheSet(cacheKey, finalResults);
+
+    write({ _done: true, _count: finalResults.length });
+    return res.end();
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: err.message || 'Server error' });
+    try { write({ _error: err.message || 'Server error' }); res.end(); } catch {}
   }
 }
 
@@ -422,24 +571,13 @@ export default async function handler(req, res) {
 function normalizeCard(c) {
   if (!c) return null;
   return {
-    id: c.id,
-    name: c.name,
-    supertype: c.supertype,
-    subtypes: c.subtypes || [],
-    types: c.types || [],
-    abilities: c.abilities || [],
-    attacks: c.attacks || [],
-    rules: c.rules || [],
-    hp: c.hp || '',
-    number: c.number || '',
-    weaknesses: c.weaknesses || [],
-    retreatCost: c.retreatCost || [],
+    id: c.id, name: c.name, supertype: c.supertype, subtypes: c.subtypes || [],
+    types: c.types || [], abilities: c.abilities || [], attacks: c.attacks || [],
+    rules: c.rules || [], hp: c.hp || '', number: c.number || '',
+    weaknesses: c.weaknesses || [], retreatCost: c.retreatCost || [],
     legalities: c.legalities || {},
     set: { name: c.setName || c.set?.name || '' },
-    images: {
-      small: c.imageSmall || c.images?.small || '',
-      large: c.imageLarge || c.images?.large || ''
-    }
+    images: { small: c.imageSmall || c.images?.small || '', large: c.imageLarge || c.images?.large || '' }
   };
 }
 
@@ -479,6 +617,6 @@ async function vectorSearch(query, typeFilter, topK = 100) {
   const data = await r.json();
   let results = (data.result || []).map(r => r.metadata).filter(Boolean);
   if (typeFilter) results = results.filter(c => (c.types || []).includes(typeFilter));
-  results = results.filter(c => STANDARD_MARKS.includes(c.regulationMark));
-  return results;
+  return results.filter(c => STANDARD_MARKS.includes(c.regulationMark));
 }
+

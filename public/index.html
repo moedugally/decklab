@@ -197,6 +197,15 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 .fb-opt i{font-size:14px;flex-shrink:0}
 .fb-opt.good i{color:#22C55E}
 .fb-opt.bad i{color:var(--red2)}
+
+/* Autocomplete */
+.ac-wrap{position:relative}
+.ac-dropdown{position:absolute;top:calc(100% + 5px);left:0;right:0;background:var(--s1);border:0.5px solid var(--line2);border-radius:10px;padding:4px;z-index:50;display:none;max-height:224px;overflow-y:auto;box-shadow:0 10px 36px rgba(0,0,0,0.45)}
+.ac-dropdown.open{display:block}
+.ac-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;font-size:13px;color:var(--text2);cursor:pointer;font-family:'Inter',sans-serif;transition:background 0.1s,color 0.1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-item:hover,.ac-item.ac-focused{background:var(--s2);color:var(--text)}
+.ac-item i{font-size:13px;color:var(--text3);flex-shrink:0}
+.ac-item:hover i,.ac-item.ac-focused i{color:var(--red2)}
 </style>
 </head>
 <body>
@@ -270,9 +279,12 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
   </div>
   <div class="app-hero">
     <div class="app-label">What does your deck need?</div>
-    <div class="app-input-wrap">
-      <input class="app-input" id="q" type="text" placeholder="e.g. accelerate fire energy from the discard pile…" />
-      <button class="app-go" id="go-btn" onclick="runSearch()">Search <i class="ti ti-arrow-right" style="font-size:12px"></i></button>
+    <div class="ac-wrap">
+      <div class="app-input-wrap">
+        <input class="app-input" id="q" type="text" placeholder="e.g. accelerate fire energy from the discard pile…" autocomplete="off" />
+        <button class="app-go" id="go-btn" onclick="runSearch()">Search <i class="ti ti-arrow-right" style="font-size:12px"></i></button>
+      </div>
+      <div class="ac-dropdown" id="ac-dropdown"></div>
     </div>
   </div>
   <div class="filter-strip">
@@ -344,22 +356,32 @@ async function fetchCards(q){
   return [];
 }
 
-async function askClaude(q,_cards){
+async function askClaude(q,onMatch,onReorder,onDone){
   const r=await fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,format:fmt,type:type})});
   if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error('Search error: '+(e.error||r.status))}
-  const d=await r.json();
-  // Card metadata is embedded in match results from the vector index
-  d.matches.forEach(m=>{if(m.card) cardMap[m.id]=m.card});
-  // Fallback: fetch from Pokemon TCG API for any cards missing metadata
-  const missing=d.matches.filter(m=>!cardMap[m.id]).map(m=>m.id);
-  if(missing.length){
-    try{
-      const cardRes=await fetch(`https://api.pokemontcg.io/v2/cards?q=id:${missing.join(' OR id:')}&pageSize=20`);
-      const cardData=await cardRes.json();
-      (cardData.data||[]).forEach(c=>{cardMap[c.id]=c});
-    }catch(e){console.warn('Card detail fetch failed',e)}
+  if(!r.body){
+    const d=await r.json();
+    (d.matches||[]).forEach(m=>{if(m.card) cardMap[m.id]=m.card; onMatch(m)});
+    onDone({});return;
   }
-  return d.matches;
+  const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
+  while(true){
+    const{done,value}=await reader.read();
+    if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n');buf=lines.pop();
+    for(const line of lines){
+      if(!line.trim()) continue;
+      try{
+        const obj=JSON.parse(line);
+        if(obj._error) throw new Error(obj._error);
+        else if(obj._reorder) onReorder(obj._reorder);
+        else if(obj._done) onDone(obj);
+        else if(obj.id){if(obj.card) cardMap[obj.id]=obj.card; onMatch(obj);}
+      }catch(e){if(e.message&&!e.message.startsWith('Unexpected')&&!e.message.startsWith('JSON')) throw e;}
+    }
+  }
+  if(buf.trim()){try{const obj=JSON.parse(buf);if(obj._done) onDone(obj);else if(obj.id){if(obj.card) cardMap[obj.id]=obj.card; onMatch(obj);}}catch{}}
 }
 
 function openDetail(id){
@@ -386,42 +408,152 @@ function openDetail(id){
   document.getElementById('detail-col').classList.add('open');
 }
 
+function buildCardTile(m){
+  const c=cardMap[m.id];if(!c) return null;
+  const tile=document.createElement('div');tile.className='ct';tile.dataset.id=m.id;tile.setAttribute('aria-label',c.name);
+  tile.innerHTML=`
+    <button class="fb-btn" aria-label="Card feedback" onclick="toggleFbMenu(event,'${m.id}')"><i class="ti ti-dots"></i></button>
+    <div class="fb-menu" id="fbm-${m.id}">
+      <button class="fb-opt good" onclick="sendFeedback(event,'${m.id}','positive')"><i class="ti ti-thumb-up"></i>Great match</button>
+      <button class="fb-opt bad" onclick="sendFeedback(event,'${m.id}','negative')"><i class="ti ti-thumb-down"></i>Doesn't meet criteria</button>
+    </div>
+    ${c.images?.small?`<img src="${c.images.small}" alt="${c.name}" loading="lazy" style="cursor:pointer" onclick="openDetail('${m.id}')" />`:`<div style="height:90px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text3);cursor:pointer" onclick="openDetail('${m.id}')"><i class="ti ti-ghost"></i></div>`}
+    <div class="cf" style="cursor:pointer" onclick="openDetail('${m.id}')"><div class="cn">${c.name}</div><div class="cs">${c.set?.name||''}</div></div>`;
+  return tile;
+}
+
 async function runSearch(){
   const q=document.getElementById('q').value.trim();if(!q) return;
   const btn=document.getElementById('go-btn');btn.disabled=true;
-  closeDetail();errMsg('');
+  closeDetail();errMsg('');matchMap={};
   document.getElementById('results-col').innerHTML='';
   appStatus('Searching…',true);
-  try{
-    const matches=await askClaude(q,[]);
-    matchMap={};matches.forEach(m=>{matchMap[m.id]=m});
-    if(!matches.length){document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-mood-empty"></i><strong>No matches found</strong><p>Try rephrasing your search.</p></div>`;appStatus('');btn.disabled=false;return}
-    appStatus(`<span class="cnt">${matches.length} cards found</span> <span style="color:var(--text3)">click any card for details</span>`);
-    const grid=document.createElement('div');grid.className='card-grid';
-    matches.forEach(m=>{
-      const c=cardMap[m.id];if(!c) return;
-      const tile=document.createElement('div');tile.className='ct';tile.dataset.id=m.id;tile.setAttribute('aria-label',c.name);
-      tile.innerHTML=`
-        <button class="fb-btn" aria-label="Card feedback" onclick="toggleFbMenu(event,'${m.id}')"><i class="ti ti-dots"></i></button>
-        <div class="fb-menu" id="fbm-${m.id}">
-          <button class="fb-opt good" onclick="sendFeedback(event,'${m.id}','positive')"><i class="ti ti-thumb-up"></i>Great match</button>
-          <button class="fb-opt bad" onclick="sendFeedback(event,'${m.id}','negative')"><i class="ti ti-thumb-down"></i>Doesn't meet criteria</button>
-        </div>
-        ${c.images?.small?`<img src="${c.images.small}" alt="${c.name}" loading="lazy" style="cursor:pointer" onclick="openDetail('${m.id}')" />`:`<div style="height:90px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text3);cursor:pointer" onclick="openDetail('${m.id}')"><i class="ti ti-ghost"></i></div>`}
-        <div class="cf" style="cursor:pointer" onclick="openDetail('${m.id}')"><div class="cn">${c.name}</div><div class="cs">${c.set?.name||''}</div></div>`;
-      grid.appendChild(tile);
-    });
-    // Missed card tile at end of results
-    const missTile=document.createElement('div');missTile.className='miss-tile';missTile.id='miss-tile';
-    missTile.innerHTML=`<i class="ti ti-plus" aria-hidden="true"></i><span>Did we miss<br>a card?</span>`;
-    missTile.onclick=()=>openMissForm(q);
-    grid.appendChild(missTile);
 
-    document.getElementById('results-col').innerHTML='';
-    document.getElementById('results-col').appendChild(grid);
-  }catch(e){errMsg(e.message||'Something went wrong');appStatus('');document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-alert-triangle"></i><strong>Search failed</strong><p>See error above.</p></div>`}
-  btn.disabled=false;
+  const grid=document.createElement('div');grid.className='card-grid';
+  const missTile=document.createElement('div');missTile.className='miss-tile';missTile.id='miss-tile';
+  missTile.innerHTML=`<i class="ti ti-plus" aria-hidden="true"></i><span>Did we miss<br>a card?</span>`;
+  missTile.onclick=()=>openMissForm(q);
+  grid.appendChild(missTile);
+  document.getElementById('results-col').appendChild(grid);
+
+  let count=0;let streamDone=false;
+
+  function onMatch(m){
+    matchMap[m.id]=m;
+    const tile=buildCardTile(m);
+    if(tile){grid.insertBefore(tile,missTile);count++;}
+    appStatus(`<span class="cnt">${count} card${count===1?'':'s'} found</span> <span style="color:var(--text3)">click any card for details</span>`);
+  }
+
+  function onReorder(ids){
+    for(const id of ids){
+      const tile=grid.querySelector(`[data-id="${id}"]`);
+      if(tile) grid.insertBefore(tile,missTile);
+    }
+  }
+
+  function onDone(){
+    streamDone=true;
+    if(count===0){
+      document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-mood-empty"></i><strong>No matches found</strong><p>Try rephrasing your search.</p></div>`;
+      appStatus('');
+    }
+    btn.disabled=false;
+  }
+
+  try{
+    await askClaude(q,onMatch,onReorder,onDone);
+    if(!streamDone) onDone();
+  }catch(e){
+    errMsg(e.message||'Something went wrong');appStatus('');
+    if(count===0) document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-alert-triangle"></i><strong>Search failed</strong><p>See error above.</p></div>`;
+    btn.disabled=false;
+  }
 }
+// ── Autocomplete ─────────────────────────────────────────────────────────────
+const AC_SUGGESTIONS = [
+  // Energy & setup
+  'accelerate fire energy from discard','accelerate water energy from discard',
+  'accelerate lightning energy from discard','attach energy from discard pile',
+  'move energy between pokemon','energy acceleration ability',
+  // Drawing & searching
+  'draw cards from deck','draw supporter','search deck for basic pokemon',
+  'search deck for evolution pokemon','consistency draw supporter',
+  // Switching & mobility
+  'switch opponent active pokemon','free retreat pivot','pivot attack switch',
+  'switch active pokemon with bench','free retreat ability',
+  // Healing & recovery
+  'heal damage from pokemon','remove damage counters',
+  'revive pokemon from discard','recovery from discard',
+  // Disruption & control
+  'discard opponent hand','ability lock path to peak',
+  'item lock control','gust boss orders effect',
+  'mill opponent deck','stadium removal',
+  // Damage
+  'damage benched pokemon snipe','spread damage to all pokemon',
+  'bench damage spread','high damage low energy attacker',
+  'low energy high damage attacker','1 energy attacker',
+  '2 energy attacker','ohko one shot attacker','burst finisher',
+  // Defense
+  'high HP wall','bench protection ability',
+  'damage reduction defender','prevent damage ability',
+  '1 prize wall stall','1 prize attacker non-ex',
+  // Named support queries
+  'support charizard ex','support dragapult ex','support regidrago',
+  'support iron hands ex','energy for charizard',
+  'heal crustle','heal mega kangaskhan',
+  // Counter queries
+  'counter charizard ex','counter lost box','counter ability lock decks',
+  // Trainer roles
+  'item recovery','boss orders gust trainer',
+];
+
+(function initAutocomplete(){
+  const input = document.getElementById('q');
+  const drop  = document.getElementById('ac-dropdown');
+  let focusIdx = -1;
+
+  function items(){ return drop.querySelectorAll('.ac-item'); }
+
+  function render(val){
+    const q = val.trim().toLowerCase();
+    if(!q){ close(); return; }
+    const matches = AC_SUGGESTIONS.filter(s => s.includes(q)).slice(0,8);
+    if(!matches.length){ close(); return; }
+    drop.innerHTML = matches.map(s =>
+      `<div class="ac-item"><i class="ti ti-search"></i>${s}</div>`
+    ).join('');
+    drop.classList.add('open');
+    focusIdx = -1;
+    drop.querySelectorAll('.ac-item').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        input.value = el.textContent.trim();
+        close();
+        runSearch();
+      });
+    });
+  }
+
+  function close(){ drop.classList.remove('open'); drop.innerHTML=''; focusIdx=-1; }
+
+  function moveFocus(dir){
+    const els = items();
+    els.forEach(el => el.classList.remove('ac-focused'));
+    focusIdx = Math.max(-1, Math.min(els.length-1, focusIdx + dir));
+    if(focusIdx >= 0){ els[focusIdx].classList.add('ac-focused'); input.value = els[focusIdx].textContent.trim(); }
+  }
+
+  input.addEventListener('input', e => render(e.target.value));
+  input.addEventListener('keydown', e => {
+    if(e.key==='Enter'){ close(); return; }
+    if(e.key==='Escape'){ close(); return; }
+    if(e.key==='ArrowDown'){ e.preventDefault(); moveFocus(1); }
+    if(e.key==='ArrowUp'){ e.preventDefault(); moveFocus(-1); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 120));
+})();
+
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch()});
 
 let lastQuery='';
