@@ -525,6 +525,50 @@ ${JSON.stringify(cardSummaries, null, 1)}`;
   }
 }
 
+// ── rarity deduplication ──────────────────────────────────────────────────────
+// Within each name+set group, keep only the base rarity version so full arts,
+// illustration rares, SIRs, and rainbow rares don't clog results.
+
+const RARITY_RANK = {
+  'common': 0, 'uncommon': 1,
+  'rare': 2, 'rare holo': 3,
+  'double rare': 4,                    // standard ex/V base rarity in SV era
+  'rare holo ex': 4, 'rare holo lv.x': 4,
+  'amazing rare': 5,
+  'radiant rare': 6,
+  'ace spec rare': 7,
+  'illustration rare': 8,
+  'ultra rare': 9,                     // full arts
+  'special illustration rare': 10,
+  'hyper rare': 11,                    // gold cards
+  'shiny rare': 12, 'shiny ultra rare': 13,
+  'trainer gallery rare holo': 14,
+};
+
+function rarityRank(rarity) {
+  return RARITY_RANK[(rarity || '').toLowerCase()] ?? 3; // default: treat unknown as Rare Holo
+}
+
+function dedupeByBaseRarity(cards) {
+  const normKey = s => (s || '').toLowerCase().replace('é', 'e');
+  const groups  = new Map();
+
+  for (const card of cards) {
+    const isPokemon = !['trainer', 'energy'].includes(normKey(card.supertype));
+    // Trainers dedup by name only (same card reprinted in different sets is the same card)
+    // Pokémon dedup by name+set (same Pokémon in different sets may have different attacks)
+    const key = isPokemon ? `${card.name}|${card.setName}` : card.name;
+
+    if (!groups.has(key)) {
+      groups.set(key, card);
+    } else if (rarityRank(card.rarity) < rarityRank(groups.get(key).rarity)) {
+      groups.set(key, card);
+    }
+  }
+
+  return [...groups.values()];
+}
+
 // ── main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -626,16 +670,8 @@ export default async function handler(req, res) {
       return res.end();
     }
 
-    // ── dedupe ──
-    const seen = new Set();
-    const deduped = cards.filter(c => {
-      const norm = s => (s || '').toLowerCase().replace('é', 'e');
-      const isPokemon = !['trainer', 'energy'].includes(norm(c.supertype));
-      const key = isPokemon ? `${c.name}|${c.setName}` : c.name;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    // ── dedupe — keep base rarity within each name+set group ──
+    const deduped = dedupeByBaseRarity(cards);
 
     // ── hard structured filters ──
     const hardFiltered = (() => {
