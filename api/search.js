@@ -324,12 +324,18 @@ export default async function handler(req, res) {
       return res.status(200).json({ matches: filtered });
     }
 
-    // ── classify query + fetch archetypes in parallel ──
-    const archetypes = await getArchetypes().catch(() => []);
+    // ── classify query (fetch archetypes only if likely needed) ──
+    // Do a fast pre-check: only pull Limitless data for archetype/counter queries
+    const lqPre = query.toLowerCase();
+    const likelyNeedsArchetypes = /\b(deck|list|build|counter|beat|against)\b/.test(lqPre);
+    const archetypes = likelyNeedsArchetypes ? await getArchetypes().catch(() => []) : [];
     const intent = await classifyQuery(query, archetypes);
 
-    // ── build enriched search query ──
+    // ── build enriched search query + vector search in parallel ──
+    // For named_pokemon we need card data first, so those run sequentially.
+    // For everything else, start vector search immediately with the rewritten query.
     let searchQuery = intent.rewritten_query || query;
+
     if (intent.type === 'named_pokemon' && intent.named_card) {
       searchQuery = await buildNamedPokemonQuery(intent, query);
     } else if ((intent.type === 'archetype' || intent.type === 'counter') && intent._archetype) {
@@ -362,8 +368,9 @@ export default async function handler(req, res) {
       return deduped; // abandon all filters rather than return empty
     })();
 
-    // ── semantic re-ranking ──
-    const reranked = await rerank(query, intent, hardFiltered);
+    // ── semantic re-ranking (skip for general queries — saves ~2s) ──
+    const needsRerank = ['named_pokemon', 'multi_constraint', 'counter', 'synergy', 'budget'].includes(intent.type);
+    const reranked = needsRerank ? await rerank(query, intent, hardFiltered) : hardFiltered;
 
     // ── feedback filter ──
     const filtered = await filterFlagged(query, reranked);
