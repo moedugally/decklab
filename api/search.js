@@ -192,6 +192,8 @@ Rules:
 
 Examples:
 - "heal crustle" → type: named_pokemon, excludeNames: ["Crustle"], rewritten_query: "trainer cards and abilities that remove damage counters or restore HP."
+- "heal multiple pokemon at once" / "heal your whole board" / "heal all your pokemon" → requireSupertype: null (healing can come from Pokémon abilities AND trainer cards — do NOT restrict to trainer), cardTextContains: ["each of your Pokémon", "all of your Pokémon", "each Pokémon in play", "remove all damage", "heal all"]
+- "heal one pokemon" / "restore HP" / "remove damage counters" → requireSupertype: null (same — do NOT assume trainer), cardTextContains: ["remove", "heal", "restore HP"]
 - "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
 - "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
 - "move damage from my pokemon to opponents pokemon" → cardTextContains: "move damage counters", rewritten_query: "ability or attack that moves or transfers damage counters from your pokemon to opponent's pokemon. Damage counter manipulation, redirect damage."
@@ -509,7 +511,7 @@ async function rerank(originalQuery, intent, cards) {
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
 Intent: ${intent.type}${intent.named_card ? ` (target: ${intent.named_card})` : ''}${intent.archetype_name ? ` (archetype: ${intent.archetype_name})` : ''}
 ${hardRules ? `\nSTRICT REQUIREMENTS — violating any one of these is grounds for rejection:\n${hardRules}\n` : ''}
-Return ONLY the IDs of cards that genuinely fulfill ALL requirements, best matches first. Be strict — it is better to return fewer correct cards than many incorrect ones.
+Return ONLY the IDs of cards that genuinely fulfill the requirements, best matches first. Hard rules above are already enforced — your job is ranking and removing clearly irrelevant cards, NOT aggressively cutting borderline matches. When the candidate pool is small (under 10), keep everything that could reasonably match.
 Return ONLY a JSON array of IDs, no markdown: ["id1","id2",...]
 
 Candidates:
