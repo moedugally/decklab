@@ -59,7 +59,7 @@ const KV_TOKEN  = process.env.KV_REST_API_TOKEN;
 const VECTOR_URL   = process.env.UPSTASH_VECTOR_REST_URL;
 const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const CACHE_TTL = 60 * 60 * 24 * 30;
+const CACHE_TTL = 60 * 60 * 6; // 6 hours — candidates only, logic always re-runs
 const NEGATIVE_THRESHOLD = 1;
 const STATS_KEY = 'statsindex';
 
@@ -597,25 +597,8 @@ export default async function handler(req, res) {
   const write = (obj) => { try { res.write(JSON.stringify(obj) + '\n'); } catch {} };
 
   try {
-    // ── cache hit ──
-    const cached = await cacheGet(cacheKey);
-    if (cached) {
-      const filtered = await filterFlagged(query, cached);
-      const pinned   = await getPinned(query);
-      const pinnedFiltered = await filterFlagged(query, pinned);
-      const existingIds = new Set(filtered.map(m => m.id));
-      for (const c of pinnedFiltered) {
-        if (!existingIds.has(c.id)) filtered.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
-      }
-      // Boost positive-feedback cards to front
-      const posIds = await getPositiveIds(query, filtered.map(m => m.id));
-      if (posIds.size) {
-        filtered.sort((a, b) => (posIds.has(b.id) ? 1 : 0) - (posIds.has(a.id) ? 1 : 0));
-      }
-      for (const match of filtered) write(match);
-      write({ _done: true, _count: filtered.length, _cache: 'HIT' });
-      return res.end();
-    }
+    // ── cache hit (candidates only — filtering/reranking always re-runs) ──
+    const cachedCandidates = await cacheGet(cacheKey);
 
     // ── classify query ──
     const lqPre = query.toLowerCase();
@@ -641,11 +624,17 @@ export default async function handler(req, res) {
     const altQueries = (intent.alternative_queries || []).slice(0, 2);
     const allQueries = [primaryQuery, mechanicQuery, ...altQueries].filter(Boolean);
 
-    // ── parallel vector searches (RRF merge) ──
-    const resultSets = await Promise.all(
-      allQueries.map(q => vectorSearch(q, typeFilter, 100))
-    );
-    const vectorCards = mergeRRF(resultSets);
+    // ── parallel vector searches (RRF merge) — use cache if available ──
+    let vectorCards;
+    if (cachedCandidates) {
+      vectorCards = cachedCandidates;
+    } else {
+      const resultSets = await Promise.all(
+        allQueries.map(q => vectorSearch(q, typeFilter, 100))
+      );
+      vectorCards = mergeRRF(resultSets);
+      cacheSet(cacheKey, vectorCards);
+    }
 
     // ── stat store augmentation for numeric constraint queries ──
     // Guarantees cards that qualify by exact stats are never missed due to semantic ranking
@@ -754,8 +743,6 @@ export default async function handler(req, res) {
         write(match);
       }
     }
-
-    if (finalResults.length > 0) cacheSet(cacheKey, finalResults);
 
     write({ _done: true, _count: finalResults.length });
     return res.end();
