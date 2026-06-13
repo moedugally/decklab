@@ -307,7 +307,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v5:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v6:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   try {
     // ── cache hit ──
@@ -393,7 +393,7 @@ export default async function handler(req, res) {
       if (!existingIds.has(c.id)) results.push({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
     }
 
-    cacheSet(cacheKey, results);
+    if (results.length > 0) cacheSet(cacheKey, results);
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
     res.setHeader('X-Cache', 'MISS');
     const _debug = {
