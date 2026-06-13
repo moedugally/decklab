@@ -157,7 +157,8 @@ Return this exact JSON shape:
     "requireStage": "<'Basic'|'Stage 1'|'Stage 2'|'VMAX'|'VSTAR'|null — only set if stage is explicitly mentioned>",
     "excludePokemonRule": <true if query says '1 prize', 'non-ex', 'non-V', 'single prize' — excludes ex/V/VMAX/VSTAR, else false>,
     "requirePokemonRule": <true if query says '2 prize', 'ex only', 'V pokemon' — requires rule box, else false>,
-    "cardTextContains": "<exact mechanic phrase to find in ability/attack text, e.g. 'move damage counters', 'discard energy', 'search your deck' — or null>"
+    "cardTextContains": "<exact mechanic phrase to find in ability/attack text, e.g. 'move damage counters', 'discard energy', 'search your deck' — or null>",
+    "requireWeakness": "<energy type the card must be weak to, e.g. 'Grass', 'Fire', 'Water' — or null>"
   },
   "rewritten_query": "<CRITICAL: describe the SOLUTION CARDS you're looking for. Include the specific card text pattern if relevant. 2-4 sentences.>",
   "alternative_queries": ["<alternate phrasing — stat/numeric focus>", "<alternate phrasing — role/synergy focus>"]
@@ -182,6 +183,8 @@ Examples:
 - "move damage from my pokemon to opponents pokemon" → cardTextContains: "move damage counters", rewritten_query: "ability or attack that moves or transfers damage counters from your pokemon to opponent's pokemon. Damage counter manipulation, redirect damage."
 - "1 prize attacker" → excludePokemonRule: true, requireSupertype: "pokemon", rewritten_query: "single prize non-ex non-V attacker"
 - "pokemon with an ability" → requireAbility: true, requireSupertype: "pokemon"
+- "dark pokemon with grass weakness" → requireTypes: ["Darkness"], requireSupertype: "pokemon", requireWeakness: "Grass"
+- "fire weak pokemon" → requireWeakness: "Fire"
 
 User query: `;
 
@@ -232,6 +235,7 @@ async function classifyQuery(query, archetypes) {
     if (c.excludePokemonRule == null)  c.excludePokemonRule         = false;
     if (c.requirePokemonRule == null)  c.requirePokemonRule         = false;
     if (c.cardTextContains == null)    c.cardTextContains           = null;
+    if (c.requireWeakness == null)     c.requireWeakness            = null;
     if (!parsed.alternative_queries)   parsed.alternative_queries   = [];
 
     if (archetypeMatch && (parsed.type === 'archetype' || parsed.type === 'counter')) {
@@ -310,7 +314,7 @@ function applyStructuredFilters(cards, criteria) {
     minDamage, maxEnergyCost, maxRetreatCost,
     excludeNames, requireSupertype, requireTypes,
     requireColorlessAttacksOnly, requireAbility, requireStage,
-    excludePokemonRule, requirePokemonRule, cardTextContains,
+    excludePokemonRule, requirePokemonRule, cardTextContains, requireWeakness,
   } = criteria;
 
   const norm      = s => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
@@ -358,6 +362,11 @@ function applyStructuredFilters(cards, criteria) {
         (a.cost || []).every(c => c === 'Colorless')
       );
       if (!allColorless) return false;
+    }
+
+    // Weakness filter
+    if (requireWeakness) {
+      if (!(card.weaknesses || []).some(w => w.type === requireWeakness)) return false;
     }
 
     // Card text contains a specific mechanic phrase (abilities OR attacks OR rules)
@@ -437,6 +446,7 @@ async function rerank(originalQuery, intent, cards) {
     c.excludePokemonRule        && `HARD RULE: Card must NOT have a rule box (no ex, V, VMAX, VSTAR). Single-prize only.`,
     c.requirePokemonRule        && `HARD RULE: Card MUST have a rule box (ex, V, VMAX, or VSTAR).`,
     c.requireStage              && `HARD RULE: Card must be a ${c.requireStage}. Reject other stages.`,
+    c.requireWeakness           && `HARD RULE: Card must be weak to ${c.requireWeakness} type. Reject any card without ${c.requireWeakness} weakness.`,
     c.minDamage                 && `HARD RULE: Card must have at least one attack dealing ${c.minDamage}+ damage.`,
     c.maxEnergyCost !== null && c.maxEnergyCost !== undefined && `HARD RULE: The qualifying attack must cost ${c.maxEnergyCost} energy or fewer.`,
   ].filter(Boolean).join('\n');
