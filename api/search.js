@@ -182,7 +182,12 @@ Rules:
 - "search deck for" → cardTextContains: "search your deck"
 - "heal multiple pokemon" / "heal all pokemon" / "heal your whole board" → cardTextContains: ["each of your", "all of your Pokémon", "each Pokémon"]
 - "prevent damage to all pokemon" / "protect whole board" → cardTextContains: ["each of your", "all Pokémon"]
-- "damage to each of opponent's" / "snipe whole bench" → cardTextContains: ["each of your opponent's"]
+- "snipe whole bench" / "damage all benched" / "spread to every benched" → cardTextContains: ["to each of your opponent's Benched", "to your opponent's Benched Pokémon", "damage to all of your opponent's Benched"]
+- "inflict status" / "status condition" / "burn or poison" / "sleep or paralyze" → cardTextContains: ["is now Burned", "is now Poisoned", "is now Asleep", "is now Paralyzed", "is now Confused"]
+- "force opponent to switch" / "switch their active" / "bring up opponent's benched" → cardTextContains: ["your opponent switches their Active", "your opponent's Active Pokémon to their Bench", "your opponent puts their Active"]
+- "discard from opponent's hand" / "hand disruption" / "make opponent discard" → cardTextContains: ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2"]
+- "energy acceleration from discard" / "attach energy from discard" → cardTextContains: ["attach a Basic Energy card from your discard", "attach an Energy from your discard pile", "attach a Basic Energy from your discard"]
+- "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking"]
 - alternative_queries must be genuinely different angles
 
 Examples:
