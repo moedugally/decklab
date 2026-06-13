@@ -338,12 +338,13 @@ export default async function handler(req, res) {
 
     // ── vector search ──
     const cards = await vectorSearch(searchQuery, typeFilter);
-    if (!cards.length) return res.status(200).json({ matches: [] });
+    if (!cards.length) return res.status(200).json({ matches: [], _debug: 'no vector results' });
 
     // ── dedupe ──
     const seen = new Set();
     const deduped = cards.filter(c => {
-      const isPokemon = !['trainer', 'energy'].includes(c.supertype?.toLowerCase());
+      const norm = (s) => (s || '').toLowerCase().replace('é', 'e');
+      const isPokemon = !['trainer', 'energy'].includes(norm(c.supertype));
       const key = isPokemon ? `${c.name}|${c.setName}` : c.name;
       if (seen.has(key)) return false;
       seen.add(key);
@@ -351,15 +352,14 @@ export default async function handler(req, res) {
     });
 
     // ── hard structured filters (numeric constraints, exclusions) ──
-    // Safety: if filters eliminate everything, fall back to full deduped set
-    // so the re-ranker can still do semantic filtering
+    // Two-level fallback: first try full criteria, then drop numeric constraints,
+    // then abandon all filters if needed — always return at least the deduped set
     const hardFiltered = (() => {
-      const f = applyStructuredFilters(deduped, intent.criteria);
-      return f.length > 0 ? f : applyStructuredFilters(deduped, {
-        ...intent.criteria,
-        minDamage: null,
-        maxEnergyCost: null,
-      });
+      const f1 = applyStructuredFilters(deduped, intent.criteria);
+      if (f1.length > 0) return f1;
+      const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
+      if (f2.length > 0) return f2;
+      return deduped; // abandon all filters rather than return empty
     })();
 
     // ── semantic re-ranking ──
@@ -368,7 +368,10 @@ export default async function handler(req, res) {
     // ── feedback filter ──
     const filtered = await filterFlagged(query, reranked);
 
-    const results = filtered.map(c => ({
+    // Final safety: if feedback filter wiped everything, use pre-filter results
+    const safeFiltered = filtered.length > 0 ? filtered : reranked;
+
+    const results = safeFiltered.map(c => ({
       id: c.id,
       name: c.name,
       relevance: 'high',
@@ -386,6 +389,7 @@ export default async function handler(req, res) {
     cacheSet(cacheKey, results);
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
     res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Debug', `vector:${cards.length},deduped:${deduped.length},filtered:${hardFiltered.length},reranked:${reranked.length},final:${results.length},intent:${intent.type}`);
     return res.status(200).json({ matches: results });
 
   } catch (err) {
