@@ -77,12 +77,14 @@ Return this exact JSON shape:
     "requireSupertype": "<'pokemon'|'trainer'|'energy'|null>",
     "requireTypes": ["<energy types like 'Fire','Water' if specified, else []>"]
   },
-  "rewritten_query": "<expanded precise search query using TCG mechanic language, 2-4 sentences>"
+  "rewritten_query": "<CRITICAL: describe the SOLUTION CARDS you're looking for, NOT the target Pokémon. For named_pokemon queries, describe the mechanic/effect needed (e.g. 'trainer cards and abilities that remove damage counters or restore HP, healing supporters, recovery items'). Never mention the target Pokémon's name in this field. 2-4 sentences about what the ideal result card does.>"
 }
 
-For "low energy high damage": minDamage ~150, maxEnergyCost 1-2.
-For "counter X": excludeNames should include X and its evolutions.
-For "heal crustle": excludeNames: ["Crustle","Dwebble"], requireSupertype null (healing can be trainer or pokemon ability).
+Examples:
+- "heal crustle" → rewritten_query: "trainer cards and pokemon abilities that heal damage counters or restore HP to any pokemon. Recovery supporters, healing items, abilities that remove damage."
+- "low energy high damage" → minDamage: 150, maxEnergyCost: 1, rewritten_query: "pokemon attacker with high damage output for minimal energy cost, one energy attack, efficient damage dealer"
+- "counter lost box" → rewritten_query: "cards that disrupt lost zone strategies, prevent lost zone damage, path to the peak ability lock, prize denial counters"
+- "heal mega kangaskhan" → excludeNames: ["Kangaskhan","Mega Kangaskhan"], rewritten_query: "healing trainer cards, damage counter removal, HP restoration supporters and items, recovery mechanics"
 
 User query: `;
 
@@ -152,17 +154,21 @@ async function lookupCardData(cardName) {
 
 async function buildNamedPokemonQuery(intent, originalQuery) {
   const cardData = await lookupCardData(intent.named_card);
-  if (!cardData) return intent.rewritten_query;
+
+  // rewritten_query describes the solution cards (e.g. "healing trainers, damage removal")
+  // cardData traits are appended as context for what the target pokemon needs
+  const base = intent.rewritten_query || originalQuery;
+
+  if (!cardData) return base;
 
   const traits = [
     cardData.types?.length ? `${cardData.types.join('/')} type` : '',
     cardData.subtypes?.length ? cardData.subtypes.join(' ') : '',
-    cardData.hp ? `${cardData.hp} HP` : '',
-    ...(cardData.abilities || []).map(a => `ability "${a.name}": ${a.text}`),
-    ...(cardData.attacks || []).map(a => `attack "${a.name}" (${a.damage || '–'}): ${a.text || ''}`),
+    ...(cardData.abilities || []).map(a => `"${a.name}": ${a.text}`),
   ].filter(Boolean).join('. ');
 
-  return `${intent.rewritten_query} Target Pokémon — ${cardData.name}: ${traits}`;
+  // Lead with the mechanic description, trail with target context
+  return `${base} Compatible with: ${cardData.name}${traits ? ` (${traits})` : ''}.`;
 }
 
 function buildArchetypeQuery(intent) {
