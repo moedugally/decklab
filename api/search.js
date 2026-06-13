@@ -157,7 +157,7 @@ Return this exact JSON shape:
     "requireStage": "<'Basic'|'Stage 1'|'Stage 2'|'VMAX'|'VSTAR'|null — only set if stage is explicitly mentioned>",
     "excludePokemonRule": <true if query says '1 prize', 'non-ex', 'non-V', 'single prize' — excludes ex/V/VMAX/VSTAR, else false>,
     "requirePokemonRule": <true if query says '2 prize', 'ex only', 'V pokemon' — requires rule box, else false>,
-    "cardTextContains": "<exact mechanic phrase to find in ability/attack text, e.g. 'move damage counters', 'discard energy', 'search your deck' — or null>",
+    "cardTextContains": "<string OR array of strings — card ability/attack/rule text must contain ANY of these phrases. Use an array when the mechanic can be described multiple ways. e.g. 'move damage counters' or ['each of your', 'all of your Pokémon'] for multi-heal effects>",
     "requireWeakness": "<energy type the card must be weak to, e.g. 'Grass', 'Fire', 'Water' — or null>",
     "requireResistance": "<energy type the card must resist, e.g. 'Psychic', 'Metal' — or null>",
     "requireSubtype": "<specific subtype: 'Item'|'Supporter'|'Stadium'|'Ancient'|'Future'|'Tool'|'ACE SPEC' — or null. Use this for trainer subtypes AND pokemon traits>",
@@ -180,6 +180,9 @@ Rules:
 - "move damage" / "transfer damage counters" → cardTextContains: "move damage counters"
 - "discard energy from opponent" → cardTextContains: "discard an Energy"
 - "search deck for" → cardTextContains: "search your deck"
+- "heal multiple pokemon" / "heal all pokemon" / "heal your whole board" → cardTextContains: ["each of your", "all of your Pokémon", "each Pokémon"]
+- "prevent damage to all pokemon" / "protect whole board" → cardTextContains: ["each of your", "all Pokémon"]
+- "damage to each of opponent's" / "snipe whole bench" → cardTextContains: ["each of your opponent's"]
 - alternative_queries must be genuinely different angles
 
 Examples:
@@ -412,12 +415,12 @@ function applyStructuredFilters(cards, criteria) {
 
     // Card text contains a specific mechanic phrase (abilities OR attacks OR rules)
     if (cardTextContains) {
-      const needle = textOf(cardTextContains);
+      const needles = Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains];
       const abilityText  = (card.abilities || []).map(a => textOf(a.text)).join(' ');
       const attackText   = (card.attacks || []).map(a => textOf(a.text)).join(' ');
       const rulesText    = (card.rules || []).map(textOf).join(' ');
       const combined     = `${abilityText} ${attackText} ${rulesText}`;
-      if (!combined.includes(needle)) return false;
+      if (!needles.some(n => combined.includes(textOf(n)))) return false;
     }
 
     // Attack damage + energy cost — card passes if ANY attack satisfies BOTH
@@ -482,7 +485,7 @@ async function rerank(originalQuery, intent, cards) {
   const hardRules = [
     intent.constraints?.length && `ALL of these must be true simultaneously: ${intent.constraints.join('; ')}`,
     c.requireColorlessAttacksOnly && `HARD RULE: ALL of the card's attacks must use ONLY Colorless energy. Reject any card where even one attack requires typed energy (Fire, Water, etc.).`,
-    c.cardTextContains          && `HARD RULE: Card's ability or attack text must contain "${c.cardTextContains}". Reject any card whose text does not mention this.`,
+    c.cardTextContains          && `HARD RULE: Card's ability or attack text must contain ${Array.isArray(c.cardTextContains) ? 'at least one of: ' + c.cardTextContains.map(p => `"${p}"`).join(', ') : `"${c.cardTextContains}"`}. Reject any card whose text does not match.`,
     c.requireAbility            && `HARD RULE: Card must have at least one Ability. Reject Pokémon with no abilities.`,
     c.excludePokemonRule        && `HARD RULE: Card must NOT have a rule box (no ex, V, VMAX, VSTAR). Single-prize only.`,
     c.requirePokemonRule        && `HARD RULE: Card MUST have a rule box (ex, V, VMAX, or VSTAR).`,
