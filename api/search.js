@@ -82,7 +82,10 @@ Return this exact JSON shape:
 
 Examples:
 - "heal crustle" → rewritten_query: "trainer cards and pokemon abilities that heal damage counters or restore HP to any pokemon. Recovery supporters, healing items, abilities that remove damage."
-- "low energy high damage" → minDamage: 100, maxEnergyCost: 2, rewritten_query: "pokemon attacker with high damage output for minimal energy cost, efficient damage dealer, strong attack low cost"
+- "low energy high damage" → minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon attacker with high damage output for minimal energy cost, efficient damage dealer, strong attack low cost"
+- "1 energy attacker" → minDamage: 100, maxEnergyCost: 1
+- "cheap attacker" → minDamage: 120, maxEnergyCost: 2
+- IMPORTANT: "low energy" means maxEnergyCost 1 or 2 MAX. Never set maxEnergyCost above 2 for any "low energy" query.
 - "counter lost box" → rewritten_query: "cards that disrupt lost zone strategies, prevent lost zone damage, path to the peak ability lock, prize denial counters"
 - "heal mega kangaskhan" → excludeNames: ["Kangaskhan","Mega Kangaskhan"], rewritten_query: "healing trainer cards, damage counter removal, HP restoration supporters and items, recovery mechanics"
 
