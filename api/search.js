@@ -287,11 +287,11 @@ ${JSON.stringify(cardSummaries, null, 1)}`;
     const ids = JSON.parse(text.replace(/```json|```/g, '').trim());
     if (!Array.isArray(ids)) return cards;
 
-    const idSet = new Set(ids);
     const cardMap = new Map(cards.map(c => [c.id, c]));
     const ranked = ids.map(id => cardMap.get(id)).filter(Boolean);
-    const rest = cards.filter(c => !idSet.has(c.id));
-    return [...ranked, ...rest];
+    // Only return what the re-ranker confirmed — don't append unranked cards
+    // If re-ranker returned nothing, fall back to original set
+    return ranked.length > 0 ? ranked : cards;
   } catch {
     return cards;
   }
