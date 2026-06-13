@@ -158,7 +158,13 @@ Return this exact JSON shape:
     "excludePokemonRule": <true if query says '1 prize', 'non-ex', 'non-V', 'single prize' — excludes ex/V/VMAX/VSTAR, else false>,
     "requirePokemonRule": <true if query says '2 prize', 'ex only', 'V pokemon' — requires rule box, else false>,
     "cardTextContains": "<exact mechanic phrase to find in ability/attack text, e.g. 'move damage counters', 'discard energy', 'search your deck' — or null>",
-    "requireWeakness": "<energy type the card must be weak to, e.g. 'Grass', 'Fire', 'Water' — or null>"
+    "requireWeakness": "<energy type the card must be weak to, e.g. 'Grass', 'Fire', 'Water' — or null>",
+    "requireResistance": "<energy type the card must resist, e.g. 'Psychic', 'Metal' — or null>",
+    "requireSubtype": "<specific subtype: 'Item'|'Supporter'|'Stadium'|'Ancient'|'Future'|'Tool'|'ACE SPEC' — or null. Use this for trainer subtypes AND pokemon traits>",
+    "minHP": <minimum HP number, or null>,
+    "maxHP": <maximum HP number, or null>,
+    "minAttacks": <minimum number of attacks the card must have, or null>,
+    "maxAttacks": <maximum number of attacks the card can have, or null>
   },
   "rewritten_query": "<CRITICAL: describe the SOLUTION CARDS you're looking for. Include the specific card text pattern if relevant. 2-4 sentences.>",
   "alternative_queries": ["<alternate phrasing — stat/numeric focus>", "<alternate phrasing — role/synergy focus>"]
@@ -185,6 +191,16 @@ Examples:
 - "pokemon with an ability" → requireAbility: true, requireSupertype: "pokemon"
 - "dark pokemon with grass weakness" → requireTypes: ["Darkness"], requireSupertype: "pokemon", requireWeakness: "Grass"
 - "fire weak pokemon" → requireWeakness: "Fire"
+- "draw supporter" / "draw supporters" → requireSupertype: "trainer", requireSubtype: "Supporter"
+- "healing item" / "item card" → requireSupertype: "trainer", requireSubtype: "Item"
+- "stadium card" → requireSupertype: "trainer", requireSubtype: "Stadium"
+- "ancient pokemon" → requireSupertype: "pokemon", requireSubtype: "Ancient"
+- "future pokemon" → requireSupertype: "pokemon", requireSubtype: "Future"
+- "psychic resistant" / "metal resist" → requireResistance: "Psychic" / "Metal"
+- "high HP" / "tank" / "wall" → minHP: 200
+- "200+ HP" → minHP: 200
+- "pokemon with only 1 attack" → requireSupertype: "pokemon", maxAttacks: 1
+- "ACE SPEC" → requireSubtype: "ACE SPEC"
 
 User query: `;
 
@@ -236,6 +252,12 @@ async function classifyQuery(query, archetypes) {
     if (c.requirePokemonRule == null)  c.requirePokemonRule         = false;
     if (c.cardTextContains == null)    c.cardTextContains           = null;
     if (c.requireWeakness == null)     c.requireWeakness            = null;
+    if (c.requireResistance == null)   c.requireResistance          = null;
+    if (c.requireSubtype == null)      c.requireSubtype             = null;
+    if (c.minHP == null)               c.minHP                      = null;
+    if (c.maxHP == null)               c.maxHP                      = null;
+    if (c.minAttacks == null)          c.minAttacks                 = null;
+    if (c.maxAttacks == null)          c.maxAttacks                 = null;
     if (!parsed.alternative_queries)   parsed.alternative_queries   = [];
 
     if (archetypeMatch && (parsed.type === 'archetype' || parsed.type === 'counter')) {
@@ -314,7 +336,9 @@ function applyStructuredFilters(cards, criteria) {
     minDamage, maxEnergyCost, maxRetreatCost,
     excludeNames, requireSupertype, requireTypes,
     requireColorlessAttacksOnly, requireAbility, requireStage,
-    excludePokemonRule, requirePokemonRule, cardTextContains, requireWeakness,
+    excludePokemonRule, requirePokemonRule, cardTextContains,
+    requireWeakness, requireResistance, requireSubtype,
+    minHP, maxHP, minAttacks, maxAttacks,
   } = criteria;
 
   const norm      = s => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
@@ -364,10 +388,27 @@ function applyStructuredFilters(cards, criteria) {
       if (!allColorless) return false;
     }
 
-    // Weakness filter
-    if (requireWeakness) {
-      if (!(card.weaknesses || []).some(w => w.type === requireWeakness)) return false;
+    // Weakness / Resistance
+    if (requireWeakness   && !(card.weaknesses   || []).some(w => w.type === requireWeakness))   return false;
+    if (requireResistance && !(card.resistances  || []).some(r => r.type === requireResistance)) return false;
+
+    // Subtype (Item / Supporter / Stadium / Ancient / Future / Tool / ACE SPEC / etc.)
+    if (requireSubtype) {
+      if (!(card.subtypes || []).some(s => norm(s) === norm(requireSubtype))) return false;
     }
+
+    // HP range
+    if (minHP !== null && minHP !== undefined) {
+      if ((parseInt(card.hp || '0', 10) || 0) < minHP) return false;
+    }
+    if (maxHP !== null && maxHP !== undefined) {
+      if ((parseInt(card.hp || '0', 10) || 0) > maxHP) return false;
+    }
+
+    // Attack count
+    const atkCount = (card.attacks || []).length;
+    if (minAttacks !== null && minAttacks !== undefined && atkCount < minAttacks) return false;
+    if (maxAttacks !== null && maxAttacks !== undefined && atkCount > maxAttacks) return false;
 
     // Card text contains a specific mechanic phrase (abilities OR attacks OR rules)
     if (cardTextContains) {
@@ -447,6 +488,12 @@ async function rerank(originalQuery, intent, cards) {
     c.requirePokemonRule        && `HARD RULE: Card MUST have a rule box (ex, V, VMAX, or VSTAR).`,
     c.requireStage              && `HARD RULE: Card must be a ${c.requireStage}. Reject other stages.`,
     c.requireWeakness           && `HARD RULE: Card must be weak to ${c.requireWeakness} type. Reject any card without ${c.requireWeakness} weakness.`,
+    c.requireResistance         && `HARD RULE: Card must have ${c.requireResistance} resistance. Reject any card without it.`,
+    c.requireSubtype            && `HARD RULE: Card must have subtype "${c.requireSubtype}" (e.g. Item/Supporter/Stadium/Ancient/Future). Reject others.`,
+    c.minHP                     && `HARD RULE: Card must have ${c.minHP}+ HP. Reject lower HP cards.`,
+    c.maxHP                     && `HARD RULE: Card must have ${c.maxHP} HP or less.`,
+    c.minAttacks                && `HARD RULE: Card must have at least ${c.minAttacks} attacks.`,
+    c.maxAttacks !== null && c.maxAttacks !== undefined && `HARD RULE: Card must have at most ${c.maxAttacks} attack(s).`,
     c.minDamage                 && `HARD RULE: Card must have at least one attack dealing ${c.minDamage}+ damage.`,
     c.maxEnergyCost !== null && c.maxEnergyCost !== undefined && `HARD RULE: The qualifying attack must cost ${c.maxEnergyCost} energy or fewer.`,
   ].filter(Boolean).join('\n');
@@ -488,7 +535,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v8:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v9:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');
@@ -620,7 +667,13 @@ export default async function handler(req, res) {
       intent.criteria?.requireAbility ||
       intent.criteria?.excludePokemonRule ||
       intent.criteria?.requirePokemonRule ||
-      intent.criteria?.requireStage
+      intent.criteria?.requireStage ||
+      intent.criteria?.requireSubtype ||
+      intent.criteria?.requireWeakness ||
+      intent.criteria?.requireResistance ||
+      intent.criteria?.minHP ||
+      intent.criteria?.maxAttacks !== null && intent.criteria?.maxAttacks !== undefined ||
+      intent.criteria?.minAttacks
     );
     const needsRerank = hasStructuralConstraints ||
       ['named_pokemon', 'multi_constraint', 'counter', 'synergy', 'budget'].includes(intent.type);

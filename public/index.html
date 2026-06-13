@@ -457,6 +457,11 @@ async function runSearch(){
     if(count===0){
       document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-mood-empty"></i><strong>No matches found</strong><p>Try rephrasing your search.</p></div>`;
       appStatus('');
+    } else {
+      // Sort all card tiles alphabetically by card name
+      const tiles=[...grid.querySelectorAll('.ct')];
+      tiles.sort((a,b)=>(a.getAttribute('aria-label')||'').localeCompare(b.getAttribute('aria-label')||''));
+      tiles.forEach(t=>grid.insertBefore(t,missTile));
     }
     btn.disabled=false;
   }
