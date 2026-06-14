@@ -180,7 +180,15 @@ Rules:
 - "inflict status" / "status condition" / "burn or poison" / "sleep or paralyze" → cardTextContains: ["is now Burned", "is now Poisoned", "is now Asleep", "is now Paralyzed", "is now Confused"]
 - "force opponent to switch" / "switch their active" / "bring up opponent's benched" → cardTextContains: ["your opponent switches their Active", "your opponent's Active Pokémon to their Bench", "your opponent puts their Active"]
 - "discard from opponent's hand" / "hand disruption" / "make opponent discard" → cardTextContains: ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2"]
-- "energy acceleration" / "accelerate energy" / "accelerate fire energy" / "attach extra energy" / any type-specific energy acceleration → do NOT set cardTextContains. Energy acceleration happens from hand, discard, deck, and via trainer effects — no single phrase covers it. Leave cardTextContains null and let the reranker judge. Set rewritten_query to describe the mechanic clearly.
+- "energy acceleration" / "accelerate energy" / "attach extra energy" (generic, no type specified) → do NOT set cardTextContains. Leave null, let reranker judge. Set rewritten_query to describe the mechanic clearly.
+- "accelerate fire energy" / "fire energy acceleration" → cardTextContains: "Fire Energy", requireTypes: null. This catches all cards that mention Fire Energy (accelerators, searchers, special energy) while excluding irrelevant types. The reranker then judges which are genuine accelerators vs discard costs.
+- "accelerate water energy" / "water energy acceleration" → cardTextContains: "Water Energy", requireTypes: null
+- "accelerate grass energy" / "grass energy acceleration" → cardTextContains: "Grass Energy", requireTypes: null
+- "accelerate lightning energy" / "lightning energy acceleration" → cardTextContains: "Lightning Energy", requireTypes: null
+- "accelerate psychic energy" / "psychic energy acceleration" → cardTextContains: "Psychic Energy", requireTypes: null
+- "accelerate fighting energy" / "fighting energy acceleration" → cardTextContains: "Fighting Energy", requireTypes: null
+- "accelerate darkness energy" / "dark energy acceleration" → cardTextContains: "Darkness Energy", requireTypes: null
+- "accelerate metal energy" / "metal energy acceleration" → cardTextContains: "Metal Energy", requireTypes: null
 - "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking"]
 - "retreat lock" / "prevent opponent from retreating" / "trap active" → cardTextContains: ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn"] — NOTE: cards that say "this Pokémon can't retreat" (self-restriction) do NOT qualify
 - "item lock" / "prevent opponent playing items" / "block items" → cardTextContains: ["can't play any Item cards from their hand", "your opponent can't play any Item cards"]
@@ -202,6 +210,8 @@ Examples:
 - "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
 - "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
 - "search deck for basic pokemon" / "find basic pokemon from deck" / "get basic from deck" → requireSupertype: null (Pokémon attacks like Call for Family and Abilities like Fan Rotom's also search the deck for Basics — do NOT restrict to trainer), cardTextContains: "search your deck"
+- "accelerate fire energy" → cardTextContains: "Fire Energy", requireTypes: null, rewritten_query: "cards that accelerate Fire energy — abilities or attacks that attach extra Basic Fire Energy beyond the 1-per-turn rule, or trainers that search/retrieve Fire Energy. Includes hand attachment, discard pile attachment, and deck search."
+- "accelerate water energy" → cardTextContains: "Water Energy", requireTypes: null, rewritten_query: "cards that accelerate Water energy beyond the 1-per-turn rule"
 - "move damage from my pokemon to opponents pokemon" → cardTextContains: "move damage counters", rewritten_query: "ability or attack that moves or transfers damage counters from your pokemon to opponent's pokemon. Damage counter manipulation, redirect damage."
 - "1 prize attacker" → excludePokemonRule: true, requireSupertype: "pokemon", rewritten_query: "single prize non-ex non-V attacker"
 - "pokemon with an ability" → requireAbility: true, requireSupertype: "pokemon"
