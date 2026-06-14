@@ -31,10 +31,10 @@ if os.path.exists(env_path):
 
 # ── config ───────────────────────────────────────────────────────────────────
 STANDARD_MARKS = ['H', 'I', 'J']
-BATCH_SIZE     = 6      # cards per Claude call — smaller batches = richer output
+BATCH_SIZE     = 3      # smaller batches = richer Sonnet output
 UPSERT_BATCH   = 50
 TCG_PAGE_SIZE  = 250
-CLAUDE_MODEL   = 'claude-haiku-4-5-20251001'
+CLAUDE_MODEL   = 'claude-sonnet-4-6'
 
 ANTHROPIC_KEY  = os.environ.get('ANTHROPIC_API_KEY', '')
 VECTOR_URL     = os.environ.get('UPSTASH_VECTOR_REST_URL', '')
@@ -77,17 +77,21 @@ def fetch_all_standard_cards():
 # ── enrichment prompt ─────────────────────────────────────────────────────────
 # Critical: descriptions must include exact numeric stats so the vector index
 # can surface cards for queries like "low energy high damage attacker".
-ENRICH_PROMPT = """You are a world-class competitive Pokémon TCG analyst. For each card below, write a rich strategic description for semantic search. Be highly specific and numeric.
+ENRICH_PROMPT = """You are a world-class competitive Pokémon TCG analyst writing semantic search descriptions. For each card, write a dense, specific strategic paragraph optimized for a vector search engine.
 
-REQUIRED in every description:
-1. EXACT NUMBERS: List every attack's exact damage and energy cost (e.g. "deals 170 damage for 2 energy", "costs 1 Fire Energy for 80 damage"). Never omit damage numbers.
-2. PRIZE VALUE: State explicitly whether it's a 1-prize card (Basic, Stage 1, Stage 2 without ex/V/VSTAR) or 2-prize card (ex, V, VMAX, VSTAR).
-3. TCG SLANG: Use all applicable shorthand: pivot, wall, snipe, mill, gust, accelerate, turbo, spread, ohko, burst, stall, lock, heal, draw, search, reborn, finisher, tech, staple, tempo, 1-prize, chip.
-4. DECK ROLES: Attacker / support / energy-acceleration / disruption / recovery / wall / pivot / tech.
-5. ARCHETYPES: Name the specific decks or strategies this card fits into or enables.
-6. SYNERGIES: Name specific cards or card types that work well with this card.
-7. META CONTEXT: Staple / strong tech / niche / situational. Format tier if relevant.
-8. WHAT PROBLEM IT SOLVES for a deck builder.
+MANDATORY in every description:
+1. EXACT NUMBERS: Every attack's exact damage and energy cost. Never omit or approximate.
+2. PRIZE VALUE: Explicitly state "1-prize card" or "2-prize card" (ex/V/VMAX/VSTAR = 2-prize).
+3. ROLE LABELS: Use all that apply: attacker / wall / pivot / support / tech / staple / searcher / accelerator / disruptor / finisher / stall / mill / snipe / spread / gust / lock / recovery
+4. DECK ARCHETYPES: Name every specific meta deck this fits in (e.g. "Charizard ex", "Gardevoir ex", "Dragapult ex", "Lost Box", "Raging Bolt ex").
+5. SYNERGIES: Name specific cards that combo with this card and explain why.
+6. COUNTERS: What decks or strategies does this card beat or struggle against?
+7. WHAT PROBLEM IT SOLVES: One sentence — "This card solves the problem of X for decks that need Y."
+8. META STANDING: Staple / strong tech / niche / situational / unplayable. Be honest.
+9. PLAYSTYLE TAGS: aggressive / control / combo / midrange / stall / turbo
+10. UNIQUE MECHANICS: Describe any unusual interaction, ruling, or edge case a competitive player would care about.
+
+Write in dense prose. Be specific and numeric. Do not be vague. A player searching "something that beats Charizard" or "1-prize wall with high HP" must find this card if it qualifies.
 
 Return a JSON array, one object per card, same order as input:
 [{"id": "...", "enriched": "...description..."}]

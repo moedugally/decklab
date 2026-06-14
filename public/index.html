@@ -452,7 +452,7 @@ async function runSearch(){
     }
   }
 
-  function onDone(){
+  function onDone(ev){
     streamDone=true;
     if(count===0){
       document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-mood-empty"></i><strong>No matches found</strong><p>Try rephrasing your search.</p></div>`;
@@ -462,6 +462,13 @@ async function runSearch(){
       const tiles=[...grid.querySelectorAll('.ct')];
       tiles.sort((a,b)=>(a.getAttribute('aria-label')||'').localeCompare(b.getAttribute('aria-label')||''));
       tiles.forEach(t=>grid.insertBefore(t,missTile));
+      // Show notice if exact filters couldn't be satisfied
+      if(ev&&ev._debug&&ev._debug.fallbackFired){
+        const notice=document.createElement('p');
+        notice.style.cssText='text-align:center;font-size:12px;color:var(--text3);margin:8px 0 0;font-family:Inter,sans-serif';
+        notice.textContent='Exact matches not found — showing closest results.';
+        document.getElementById('results-col').insertBefore(notice,grid);
+      }
     }
     btn.disabled=false;
   }

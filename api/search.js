@@ -188,6 +188,7 @@ Rules:
 - "discard from opponent's hand" / "hand disruption" / "make opponent discard" → cardTextContains: ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2"]
 - "energy acceleration from discard" / "attach energy from discard" → cardTextContains: ["attach a Basic Energy card from your discard", "attach an Energy from your discard pile", "attach a Basic Energy from your discard"]
 - "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking"]
+- NEVER set requireSupertype when the query is about a mechanic that could appear on any card type — healing, drawing, searching, energy acceleration, damage placement, status effects all appear on both Pokémon abilities AND trainer cards. Only set requireSupertype when the user explicitly says "pokemon", "trainer", "item", "supporter", "stadium", or "energy card"
 - alternative_queries must be genuinely different angles
 
 Examples:
@@ -673,11 +674,13 @@ export default async function handler(req, res) {
     const deduped = dedupeByBaseRarity(cards);
 
     // ── hard structured filters ──
+    let fallbackFired = false;
     const hardFiltered = (() => {
       const f1 = applyStructuredFilters(deduped, intent.criteria);
       if (f1.length > 0) return f1;
       const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
       if (f2.length > 0) return f2;
+      fallbackFired = true;
       return deduped;
     })();
 
@@ -746,7 +749,7 @@ export default async function handler(req, res) {
       }
     }
 
-    write({ _done: true, _count: finalResults.length, _debug: { intent: intent.type, criteria: intent.criteria, candidateCount: vectorCards.length, afterFilter: hardFiltered.length } });
+    write({ _done: true, _count: finalResults.length, _debug: { intent: intent.type, criteria: intent.criteria, candidateCount: vectorCards.length, afterFilter: hardFiltered.length, fallbackFired } });
     return res.end();
 
   } catch (err) {
