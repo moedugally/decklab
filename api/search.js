@@ -421,15 +421,10 @@ function applyStructuredFilters(cards, criteria) {
     if (minAttacks !== null && minAttacks !== undefined && atkCount < minAttacks) return false;
     if (maxAttacks !== null && maxAttacks !== undefined && atkCount > maxAttacks) return false;
 
-    // Card text contains a specific mechanic phrase (abilities OR attacks OR rules)
-    if (cardTextContains) {
-      const needles = Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains];
-      const abilityText  = (card.abilities || []).map(a => textOf(a.text)).join(' ');
-      const attackText   = (card.attacks || []).map(a => textOf(a.text)).join(' ');
-      const rulesText    = (card.rules || []).map(textOf).join(' ');
-      const combined     = `${abilityText} ${attackText} ${rulesText}`;
-      if (!needles.some(n => combined.includes(textOf(n)))) return false;
-    }
+    // NOTE: cardTextContains is intentionally NOT a hard filter here.
+    // Claude reads full card text in the reranker and judges mechanic matches
+    // more accurately than phrase matching — which breaks when card text varies
+    // across sets. The reranker receives cardTextContains as a HARD RULE instead.
 
     // Attack damage + energy cost — card passes if ANY attack satisfies BOTH
     const hasDmg  = minDamage !== null && minDamage !== undefined;
@@ -590,7 +585,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v10:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v11:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');
@@ -718,7 +713,7 @@ export default async function handler(req, res) {
     let finalResults = initialResults;
 
     if (needsRerank && hardFiltered.length > 0) {
-      const reranked = await rerank(query, intent, hardFiltered);
+      const reranked = await rerank(query, intent, hardFiltered.slice(0, 100));
       const filteredReranked = await filterFlagged(query, reranked);
       const safeReranked = filteredReranked.length > 0 ? filteredReranked : reranked;
 
