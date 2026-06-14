@@ -425,7 +425,7 @@ function applyStructuredFilters(cards, criteria) {
     // Card text filter — phrase match against ability/attack/rules text.
     // Normalizes accents so "Pokémon" matches "pokemon" etc.
     if (cardTextContains) {
-      const norm2   = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const norm2   = s => (typeof s === 'string' ? s : '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
       const needles = Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains];
       const abilityText = (card.abilities || []).map(a => norm2(a.text)).join(' ');
       const attackText  = (card.attacks  || []).map(a => norm2(a.text)).join(' ');
