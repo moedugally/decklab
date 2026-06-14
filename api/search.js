@@ -185,8 +185,6 @@ Rules:
 - "retreat lock" / "prevent opponent from retreating" / "trap active" → cardTextContains: ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn"] — NOTE: cards that say "this Pokémon can't retreat" (self-restriction) do NOT qualify
 - "item lock" / "prevent opponent playing items" / "block items" → cardTextContains: ["can't play any Item cards from their hand", "your opponent can't play any Item cards"]
 - "ability lock" / "shut off abilities" / "disable abilities" / "no abilities" → cardTextContains: ["have no Abilities", "has no Abilities"]  — NOTE: be careful, many stadium/tool cards say this; include all types
-- "trainer lock" / "prevent opponent playing trainers" / "block trainers" → cardTextContains: ["can't play any Trainer cards from their hand", "your opponent can't play any Trainer cards"]
-- "evolution lock" / "prevent evolution" / "can't evolve" → cardTextContains: ["can't evolve", "opponent can't evolve their Pokémon"]
 - "gust" / "boss effect" / "bring up benched" / "force active" / "bench to active" → cardTextContains: ["Switch in 1 of your opponent's Benched Pokémon to the Active Spot", "your opponent switches their Active Pokémon with 1 of their Benched", "put 1 of your opponent's Benched Pokémon into the Active Spot"]
 - "bench snipe" / "damage benched pokemon" / "hit the bench" / "snipe" → cardTextContains: ["to 1 of your opponent's Benched Pokémon", "damage counter on 1 of your opponent's Benched", "on 1 of your opponent's Benched Pokémon"]
 - "extra prize" / "take more prizes" / "additional prize card" → cardTextContains: ["take 1 more Prize card", "take an additional Prize card", "take 2 more Prize cards", "take 1 Prize card from your opponent"]
@@ -694,11 +692,13 @@ export default async function handler(req, res) {
       // Relax numeric constraints first
       const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
       if (f2.length > 0) return f2;
-      // If cardTextContains phrases didn't match any card text, skip the text filter
-      // and let the reranker handle mechanic judgment on the broader pool
+      // If cardTextContains phrases didn't match any card text, try dropping only
+      // the text filter (keeps other structural filters like requireSupertype etc.)
+      // Only accept f3 if it actually narrowed the pool — otherwise it's no better
+      // than returning everything and we should signal fallback to the user.
       if (intent.criteria?.cardTextContains) {
         const f3 = applyStructuredFilters(deduped, { ...intent.criteria, cardTextContains: null, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
-        if (f3.length > 0) return f3;
+        if (f3.length > 0 && f3.length < deduped.length) return f3;
       }
       fallbackFired = true;
       return deduped;
