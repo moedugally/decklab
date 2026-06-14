@@ -600,7 +600,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v13:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v14:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');
@@ -735,7 +735,7 @@ export default async function handler(req, res) {
     let finalResults = initialResults;
 
     if (needsRerank && hardFiltered.length > 0) {
-      const reranked = await rerank(query, intent, hardFiltered.slice(0, 150));
+      const reranked = await rerank(query, intent, hardFiltered.slice(0, 80));
       const filteredReranked = await filterFlagged(query, reranked);
       const safeReranked = filteredReranked.length > 0 ? filteredReranked : reranked;
 
