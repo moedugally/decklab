@@ -588,7 +588,27 @@ function dedupeByBaseRarity(cards) {
     }
   }
 
-  return [...groups.values()];
+  const bySet = [...groups.values()];
+
+  // Second pass: collapse cross-set reprints for Pokémon that share the same
+  // name + identical attack fingerprint (all attack names + damage). Two cards
+  // that attack identically are functionally the same for deck-building purposes.
+  const reprints = new Map();
+  for (const card of bySet) {
+    const isPokemon = !['trainer', 'energy'].includes(normKey(card.supertype));
+    if (!isPokemon) { reprints.set(`trainer|${card.name}`, card); continue; }
+    const attackFingerprint = (card.attacks || [])
+      .map(a => `${(a.name || '').toLowerCase()}:${a.damage || '0'}`)
+      .join('|');
+    const key = attackFingerprint ? `${normKey(card.name)}||${attackFingerprint}` : `${normKey(card.name)}|${card.setName}`;
+    if (!reprints.has(key)) {
+      reprints.set(key, card);
+    } else if (rarityRank(card.rarity) < rarityRank(reprints.get(key).rarity)) {
+      reprints.set(key, card);
+    }
+  }
+
+  return [...reprints.values()];
 }
 
 // ── main handler ──────────────────────────────────────────────────────────────
