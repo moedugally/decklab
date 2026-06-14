@@ -188,6 +188,7 @@ Rules:
 - "discard from opponent's hand" / "hand disruption" / "make opponent discard" → cardTextContains: ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2"]
 - "energy acceleration from discard" / "attach energy from discard" → cardTextContains: ["attach a Basic Energy card from your discard", "attach an Energy from your discard pile", "attach a Basic Energy from your discard"]
 - "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking"]
+- "retreat lock" / "prevent opponent from retreating" / "trap active" → cardTextContains: ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn"] — NOTE: cards that say "this Pokémon can't retreat" (self-restriction) do NOT qualify
 - NEVER set requireSupertype when the query is about a mechanic that could appear on any card type — healing, drawing, searching, energy acceleration, damage placement, status effects all appear on both Pokémon abilities AND trainer cards. Only set requireSupertype when the user explicitly says "pokemon", "trainer", "item", "supporter", "stadium", or "energy card"
 - alternative_queries must be genuinely different angles
 
@@ -495,7 +496,7 @@ async function rerank(originalQuery, intent, cards) {
   const hardRules = [
     intent.constraints?.length && `ALL of these must be true simultaneously: ${intent.constraints.join('; ')}`,
     c.requireColorlessAttacksOnly && `HARD RULE: ALL of the card's attacks must use ONLY Colorless energy. Reject any card where even one attack requires typed energy (Fire, Water, etc.).`,
-    c.cardTextContains          && `HARD RULE: Card's ability or attack text must contain ${Array.isArray(c.cardTextContains) ? 'at least one of: ' + c.cardTextContains.map(p => `"${p}"`).join(', ') : `"${c.cardTextContains}"`}. Reject any card whose text does not match.`,
+    c.cardTextContains          && `HARD RULE: Card's ability, attack, or rules text must contain ${Array.isArray(c.cardTextContains) ? 'at least one of: ' + c.cardTextContains.map(p => `"${p}"`).join(', ') : `"${c.cardTextContains}"`}. Read the actual text provided — do not assume a card qualifies based on its name. Reject any card whose text does not explicitly contain one of these phrases.`,
     c.requireAbility            && `HARD RULE: Card must have at least one Ability. Reject Pokémon with no abilities.`,
     c.excludePokemonRule        && `HARD RULE: Card must NOT have a rule box (no ex, V, VMAX, VSTAR). Single-prize only.`,
     c.requirePokemonRule        && `HARD RULE: Card MUST have a rule box (ex, V, VMAX, or VSTAR).`,
@@ -514,7 +515,14 @@ async function rerank(originalQuery, intent, cards) {
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
 Intent: ${intent.type}${intent.named_card ? ` (target: ${intent.named_card})` : ''}${intent.archetype_name ? ` (archetype: ${intent.archetype_name})` : ''}
 ${hardRules ? `\nSTRICT REQUIREMENTS — violating any one of these is grounds for rejection:\n${hardRules}\n` : ''}
-Return ONLY the IDs of cards that genuinely match the query, best matches first. Be strict — if you are not confident a card matches, exclude it. Fewer correct results is always better than more incorrect ones. For HARD RULEs, verify the card's actual text explicitly — do not infer or assume.
+CRITICAL INSTRUCTIONS:
+- Read each card's actual ability, attack, and rules text carefully before deciding.
+- Base every decision ONLY on the text shown below. Do NOT rely on your prior knowledge of what a card does — card text is the sole source of truth.
+- Card names can be misleading. A card only qualifies if its TEXT explicitly supports the query.
+- For HARD RULEs: find the exact text that satisfies the rule. If you cannot find it in the card's text, the card is rejected.
+- Be strict. Fewer correct results is always better than more incorrect ones.
+
+Return ONLY the IDs of qualifying cards, best matches first.
 Return ONLY a JSON array of IDs, no markdown: ["id1","id2",...]
 
 Candidates:
@@ -592,7 +600,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v12:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v13:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');
