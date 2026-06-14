@@ -421,10 +421,17 @@ function applyStructuredFilters(cards, criteria) {
     if (minAttacks !== null && minAttacks !== undefined && atkCount < minAttacks) return false;
     if (maxAttacks !== null && maxAttacks !== undefined && atkCount > maxAttacks) return false;
 
-    // NOTE: cardTextContains is intentionally NOT a hard filter here.
-    // Claude reads full card text in the reranker and judges mechanic matches
-    // more accurately than phrase matching — which breaks when card text varies
-    // across sets. The reranker receives cardTextContains as a HARD RULE instead.
+    // Card text filter — phrase match against ability/attack/rules text.
+    // Normalizes accents so "Pokémon" matches "pokemon" etc.
+    if (cardTextContains) {
+      const norm2   = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const needles = Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains];
+      const abilityText = (card.abilities || []).map(a => norm2(a.text)).join(' ');
+      const attackText  = (card.attacks  || []).map(a => norm2(a.text)).join(' ');
+      const rulesText   = (card.rules    || []).map(norm2).join(' ');
+      const combined    = `${abilityText} ${attackText} ${rulesText}`;
+      if (!needles.some(n => combined.includes(norm2(n)))) return false;
+    }
 
     // Attack damage + energy cost — card passes if ANY attack satisfies BOTH
     const hasDmg  = minDamage !== null && minDamage !== undefined;
@@ -507,7 +514,7 @@ async function rerank(originalQuery, intent, cards) {
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
 Intent: ${intent.type}${intent.named_card ? ` (target: ${intent.named_card})` : ''}${intent.archetype_name ? ` (archetype: ${intent.archetype_name})` : ''}
 ${hardRules ? `\nSTRICT REQUIREMENTS — violating any one of these is grounds for rejection:\n${hardRules}\n` : ''}
-Return ONLY the IDs of cards that genuinely fulfill the requirements, best matches first. Hard rules above are already enforced — your job is ranking and removing clearly irrelevant cards, NOT aggressively cutting borderline matches. When the candidate pool is small (under 10), keep everything that could reasonably match.
+Return ONLY the IDs of cards that genuinely match the query, best matches first. Be strict — if you are not confident a card matches, exclude it. Fewer correct results is always better than more incorrect ones. For HARD RULEs, verify the card's actual text explicitly — do not infer or assume.
 Return ONLY a JSON array of IDs, no markdown: ["id1","id2",...]
 
 Candidates:
@@ -585,7 +592,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v11:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v12:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');
@@ -673,8 +680,15 @@ export default async function handler(req, res) {
     const hardFiltered = (() => {
       const f1 = applyStructuredFilters(deduped, intent.criteria);
       if (f1.length > 0) return f1;
+      // Relax numeric constraints first
       const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
       if (f2.length > 0) return f2;
+      // If cardTextContains phrases didn't match any card text, skip the text filter
+      // and let the reranker handle mechanic judgment on the broader pool
+      if (intent.criteria?.cardTextContains) {
+        const f3 = applyStructuredFilters(deduped, { ...intent.criteria, cardTextContains: null, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
+        if (f3.length > 0) return f3;
+      }
       fallbackFired = true;
       return deduped;
     })();
