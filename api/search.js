@@ -631,7 +631,8 @@ export default async function handler(req, res) {
 
     // If a specific card text mechanic was identified, add it as an extra search angle
     const mechanic = intent.criteria?.cardTextContains;
-    const mechanicQuery = mechanic ? `pokemon card with ability or attack that says "${mechanic}" ${primaryQuery}` : null;
+    const mechanicPhrases = mechanic ? [mechanic].flat().slice(0, 3).join(' OR ') : null;
+    const mechanicQuery = mechanicPhrases ? `pokemon card with ability or attack text: ${mechanicPhrases}` : null;
 
     // Build query list: primary + mechanic variant + up to 2 alternatives from intent
     const altQueries = (intent.alternative_queries || []).slice(0, 2);
