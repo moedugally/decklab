@@ -713,7 +713,7 @@ export default async function handler(req, res) {
     let finalResults = initialResults;
 
     if (needsRerank && hardFiltered.length > 0) {
-      const reranked = await rerank(query, intent, hardFiltered.slice(0, 100));
+      const reranked = await rerank(query, intent, hardFiltered.slice(0, 150));
       const filteredReranked = await filterFlagged(query, reranked);
       const safeReranked = filteredReranked.length > 0 ? filteredReranked : reranked;
 
