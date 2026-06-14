@@ -3,15 +3,10 @@ import { getArchetypes, findArchetype } from './archetypes.js';
 const STANDARD_MARKS = ['H', 'I', 'J'];
 
 const TCG_SLANG = {
-  // Control / Disruption
-  'gust':              'switch opponent active pokemon with benched pokemon boss orders gust effect',
-  'gust effect':       'switch opponent active pokemon with benched pokemon boss orders',
+  // Control / Disruption — mechanic queries with exact card text are handled via cardTextContains
+  // (item lock, ability lock, retreat lock, attack lock, gust, bench snipe removed — go through Claude classification)
   'mill':              'discard cards from opponent deck deck-out win condition milling',
   'hand disruption':   'reduce opponent hand size discard cards iono supporter hand reset',
-  'lock':              'prevent opponent playing cards ability lock item lock stadium lock control',
-  'ability lock':      'shut off pokemon abilities path to the peak nullify iono ability block',
-  'item lock':         'prevent trainer item cards from being played item block control',
-  'stadium lock':      'prevent stadiums from being played lock control disruption',
   // Mobility
   'pivot':             'switch your active pokemon with benched free retreat cost zero escape rope',
   'free retreat':      'retreat cost zero switch active benched pivot no energy cost',
@@ -23,7 +18,6 @@ const TCG_SLANG = {
   'bench protection':  'prevent damage to benched pokemon bench barrier defender protection shield',
   'damage reduction':  'reduce incoming damage wall defender ability resistance',
   // Offense
-  'snipe':             'damage benched pokemon directly bench sniper targeted bench damage',
   'spread':            'damage all pokemon on opponent field bench spread attack',
   'nuke':              'high damage attack one shot knock out ohko burst finisher',
   'ohko':              'one hit knock out high damage 280+ burst attacker finisher',
@@ -189,6 +183,14 @@ Rules:
 - "energy acceleration from discard" / "attach energy from discard" → cardTextContains: ["attach a Basic Energy card from your discard", "attach an Energy from your discard pile", "attach a Basic Energy from your discard"]
 - "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking"]
 - "retreat lock" / "prevent opponent from retreating" / "trap active" → cardTextContains: ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn"] — NOTE: cards that say "this Pokémon can't retreat" (self-restriction) do NOT qualify
+- "item lock" / "prevent opponent playing items" / "block items" → cardTextContains: ["can't play any Item cards from their hand", "your opponent can't play any Item cards"]
+- "ability lock" / "shut off abilities" / "disable abilities" / "no abilities" → cardTextContains: ["have no Abilities", "has no Abilities"]  — NOTE: be careful, many stadium/tool cards say this; include all types
+- "trainer lock" / "prevent opponent playing trainers" / "block trainers" → cardTextContains: ["can't play any Trainer cards from their hand", "your opponent can't play any Trainer cards"]
+- "evolution lock" / "prevent evolution" / "can't evolve" → cardTextContains: ["can't evolve", "opponent can't evolve their Pokémon"]
+- "gust" / "boss effect" / "bring up benched" / "force active" / "bench to active" → cardTextContains: ["Switch in 1 of your opponent's Benched Pokémon to the Active Spot", "your opponent switches their Active Pokémon with 1 of their Benched", "put 1 of your opponent's Benched Pokémon into the Active Spot"]
+- "bench snipe" / "damage benched pokemon" / "hit the bench" / "snipe" → cardTextContains: ["to 1 of your opponent's Benched Pokémon", "damage counter on 1 of your opponent's Benched", "on 1 of your opponent's Benched Pokémon"]
+- "extra prize" / "take more prizes" / "additional prize card" → cardTextContains: ["take 1 more Prize card", "take an additional Prize card", "take 2 more Prize cards", "take 1 Prize card from your opponent"]
+- "discard opponent energy" / "energy removal" / "strip energy" → cardTextContains: ["Discard an Energy from your opponent's Active", "discard all Energy attached to your opponent's Active", "discard a Special Energy"]
 - NEVER set requireSupertype when the query is about a mechanic that could appear on any card type — healing, drawing, searching, energy acceleration, damage placement, status effects all appear on both Pokémon abilities AND trainer cards. Only set requireSupertype when the user explicitly says "pokemon", "trainer", "item", "supporter", "stadium", or "energy card"
 - alternative_queries must be genuinely different angles
 
