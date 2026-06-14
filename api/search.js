@@ -426,7 +426,7 @@ function applyStructuredFilters(cards, criteria) {
     // Normalizes accents so "Pokémon" matches "pokemon" etc.
     if (cardTextContains) {
       const norm2   = s => (typeof s === 'string' ? s : '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      const needles = Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains];
+      const needles = (Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains]).flat();
       const abilityText = (card.abilities || []).map(a => norm2(a.text)).join(' ');
       const attackText  = (card.attacks  || []).map(a => norm2(a.text)).join(' ');
       const rulesText   = (card.rules    || []).map(norm2).join(' ');
@@ -496,7 +496,7 @@ async function rerank(originalQuery, intent, cards) {
   const hardRules = [
     intent.constraints?.length && `ALL of these must be true simultaneously: ${intent.constraints.join('; ')}`,
     c.requireColorlessAttacksOnly && `HARD RULE: ALL of the card's attacks must use ONLY Colorless energy. Reject any card where even one attack requires typed energy (Fire, Water, etc.).`,
-    c.cardTextContains          && `HARD RULE: Card's ability, attack, or rules text must contain ${Array.isArray(c.cardTextContains) ? 'at least one of: ' + c.cardTextContains.map(p => `"${p}"`).join(', ') : `"${c.cardTextContains}"`}. Read the actual text provided — do not assume a card qualifies based on its name. Reject any card whose text does not explicitly contain one of these phrases.`,
+    c.cardTextContains          && `HARD RULE: Card's ability, attack, or rules text must contain ${Array.isArray(c.cardTextContains) ? 'at least one of: ' + [c.cardTextContains].flat().map(p => `"${p}"`).join(', ') : `"${c.cardTextContains}"`}. Read the actual text provided — do not assume a card qualifies based on its name. Reject any card whose text does not explicitly contain one of these phrases.`,
     c.requireAbility            && `HARD RULE: Card must have at least one Ability. Reject Pokémon with no abilities.`,
     c.excludePokemonRule        && `HARD RULE: Card must NOT have a rule box (no ex, V, VMAX, VSTAR). Single-prize only.`,
     c.requirePokemonRule        && `HARD RULE: Card MUST have a rule box (ex, V, VMAX, or VSTAR).`,
