@@ -1,22 +1,23 @@
-// Builds the numeric stat store in Redis from the Pokemon TCG API.
+// Builds the numeric stat store in Redis from cards already indexed in Upstash Vector.
 // POST /api/build-stats  (protected by x-build-secret header)
 //
-// Run this once after initial deploy, and again whenever new sets release.
-// The stat store lets search.js find cards by exact numeric stats (damage,
-// energy cost) without relying on semantic vector ranking — ensuring cards
-// like "Greninja ex (170dmg/2energy)" are never missed.
+// Scrolls through the vector index in pages, extracts numeric stats from each card's
+// metadata, and stores the full list in Redis. Much faster than re-fetching from the
+// Pokémon TCG API — all data is already in Upstash Vector from enrichment.
 
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
+const KV_URL      = process.env.KV_REST_API_URL;
+const KV_TOKEN    = process.env.KV_REST_API_TOKEN;
+const VECTOR_URL  = process.env.UPSTASH_VECTOR_REST_URL;
+const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
 const STANDARD_MARKS = ['H', 'I', 'J'];
 const STATS_KEY = 'statsindex';
 const STATS_TTL = 60 * 60 * 24 * 30; // 30 days
 
-function extractStats(card) {
+function extractStats(meta) {
   let maxDamage = 0;
   let minEnergyForBestAtk = 99;
 
-  for (const atk of (card.attacks || [])) {
+  for (const atk of (meta.attacks || [])) {
     const dmg  = parseInt((atk.damage || '').replace(/[^0-9]/g, '')) || 0;
     const cost = atk.convertedEnergyCost !== null && atk.convertedEnergyCost !== undefined
       ? parseInt(atk.convertedEnergyCost, 10)
@@ -29,27 +30,26 @@ function extractStats(card) {
   }
 
   return {
-    id:                  card.id,
-    name:                card.name,
-    supertype:           card.supertype || '',
-    subtypes:            card.subtypes || [],
-    types:               card.types || [],
-    setName:             card.set?.name || '',
-    number:              card.number || '',
-    imageSmall:          card.images?.small || '',
-    imageLarge:          card.images?.large || '',
-    regulationMark:      card.regulationMark || '',
-    hp:                  parseInt(card.hp || '0', 10) || 0,
-    retreatCount:        (card.retreatCost || []).length,
+    id:                  meta.id,
+    name:                meta.name,
+    supertype:           meta.supertype || '',
+    subtypes:            meta.subtypes || [],
+    types:               meta.types || [],
+    setName:             meta.setName || '',
+    number:              meta.number || '',
+    imageSmall:          meta.imageSmall || '',
+    imageLarge:          meta.imageLarge || '',
+    regulationMark:      meta.regulationMark || '',
+    hp:                  parseInt(meta.hp || '0', 10) || 0,
+    retreatCount:        (meta.retreatCost || []).length,
     maxDamage,
     minEnergyForBestAtk: maxDamage > 0 ? minEnergyForBestAtk : 99,
-    // Full card fields needed by normalizeCard in search.js
-    abilities:   card.abilities || [],
-    attacks:     card.attacks || [],
-    rules:       card.rules || [],
-    weaknesses:  card.weaknesses || [],
-    retreatCost: card.retreatCost || [],
-    legalities:  card.legalities || {},
+    abilities:   meta.abilities || [],
+    attacks:     meta.attacks || [],
+    rules:       meta.rules || [],
+    weaknesses:  meta.weaknesses || [],
+    retreatCost: meta.retreatCost || [],
+    legalities:  meta.legalities || {},
   };
 }
 
@@ -61,39 +61,44 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   if (!KV_URL || !KV_TOKEN) return res.status(500).json({ error: 'Redis not configured' });
+  if (!VECTOR_URL || !VECTOR_TOKEN) return res.status(500).json({ error: 'Vector not configured' });
 
   try {
-    // Fetch all marks in parallel, paginating each concurrently
-    async function fetchMark(mark) {
-      const cards = [];
-      let page = 1;
-      while (true) {
-        const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`regulationMark:${mark}`)}&pageSize=250&page=${page}`;
-        const r = await fetch(url, { headers: { 'User-Agent': 'decklab/1.0' } });
-        if (!r.ok) break;
-        const data = await r.json();
-        const batch = data.data || [];
-        cards.push(...batch);
-        if (batch.length < 250) break;
-        page++;
+    const allStats = [];
+    let cursor = 0;
+    const PAGE = 1000;
+
+    // Scroll through all vectors and collect metadata
+    do {
+      const r = await fetch(`${VECTOR_URL}/range`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${VECTOR_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cursor, limit: PAGE, includeMetadata: true, includeVectors: false })
+      });
+      if (!r.ok) {
+        const text = await r.text();
+        return res.status(500).json({ error: `Vector range failed: ${text}` });
       }
-      return cards;
-    }
+      const data = await r.json();
+      const vectors = data.result?.vectors || [];
 
-    const results = await Promise.all(STANDARD_MARKS.map(fetchMark));
-    const allCards = results.flat();
+      for (const v of vectors) {
+        const meta = v.metadata;
+        if (!meta || !STANDARD_MARKS.includes(meta.regulationMark)) continue;
+        allStats.push(extractStats(meta));
+      }
 
-    const stats = allCards
-      .filter(c => STANDARD_MARKS.includes(c.regulationMark))
-      .map(extractStats);
+      cursor = data.result?.nextCursor ?? 0;
+    } while (cursor !== 0);
 
+    // Store in Redis
     await fetch(`${KV_URL}/pipeline`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([['SET', STATS_KEY, JSON.stringify(stats), 'EX', STATS_TTL]])
+      body: JSON.stringify([['SET', STATS_KEY, JSON.stringify(allStats), 'EX', STATS_TTL]])
     });
 
-    return res.status(200).json({ ok: true, count: stats.length });
+    return res.status(200).json({ ok: true, count: allStats.length });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

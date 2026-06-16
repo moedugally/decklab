@@ -77,21 +77,23 @@ def fetch_all_standard_cards():
 # ── enrichment prompt ─────────────────────────────────────────────────────────
 # Critical: descriptions must include exact numeric stats so the vector index
 # can surface cards for queries like "low energy high damage attacker".
-ENRICH_PROMPT = """You are a world-class competitive Pokémon TCG analyst writing semantic search descriptions. For each card, write a dense, specific strategic paragraph optimized for a vector search engine.
+ENRICH_PROMPT = """You are a world-class competitive Pokémon TCG analyst writing semantic search descriptions for the 2025-2026 Standard format (regulation marks H, I, J only). For each card, write a dense, specific strategic paragraph optimized for a vector search engine.
 
 MANDATORY in every description:
-1. EXACT NUMBERS: Every attack's exact damage and energy cost. Never omit or approximate.
+1. EXACT NUMBERS: Every attack's exact damage and energy cost. Every ability's exact effect. Never omit or approximate.
 2. PRIZE VALUE: Explicitly state "1-prize card" or "2-prize card" (ex/V/VMAX/VSTAR = 2-prize).
-3. ROLE LABELS: Use all that apply: attacker / wall / pivot / support / tech / staple / searcher / accelerator / disruptor / finisher / stall / mill / snipe / spread / gust / lock / recovery
-4. DECK ARCHETYPES: Name every specific meta deck this fits in (e.g. "Charizard ex", "Gardevoir ex", "Dragapult ex", "Lost Box", "Raging Bolt ex").
-5. SYNERGIES: Name specific cards that combo with this card and explain why.
-6. COUNTERS: What decks or strategies does this card beat or struggle against?
+3. ROLE LABELS: Use all that apply: attacker / wall / pivot / support / tech / staple / searcher / accelerator / disruptor / finisher / stall / mill / snipe / spread / gust / lock / recovery / damage-placement / hand-disruption / energy-removal
+4. DECK ARCHETYPES (current 2026 Standard meta only): Name every specific current meta deck this fits in. Current top archetypes include: Dragapult ex (variants: with Dusknoir, with Dudunsparce, with Mega Greninja ex [Greninja pult], with Blaziken ex [chicken pult / pult chicken], with Crushing Hammers [hammer pult]), Mega Lucario ex, Cynthia's Garchomp ex, Alakazam Dudunsparce, Festival Lead, Mega Lopunny Dudunsparce, Mega Frosslass Mega Starmie ex. Do NOT reference rotated archetypes (Charizard ex, Lost Box, Gardevoir ex, Raging Bolt ex, etc. — all rotated out of Standard).
+5. SYNERGIES: Name specific currently-legal cards that combo with this card and explain the exact interaction.
+6. COUNTERS: What current decks or strategies does this card beat or struggle against?
 7. WHAT PROBLEM IT SOLVES: One sentence — "This card solves the problem of X for decks that need Y."
-8. META STANDING: Staple / strong tech / niche / situational / unplayable. Be honest.
-9. PLAYSTYLE TAGS: aggressive / control / combo / midrange / stall / turbo
-10. UNIQUE MECHANICS: Describe any unusual interaction, ruling, or edge case a competitive player would care about.
+8. META STANDING: Staple / strong tech / niche / situational / unplayable. Be honest and current.
+9. PLAYSTYLE TAGS: aggressive / control / combo / midrange / stall / turbo / spread / mill
+10. UNIQUE MECHANICS: Describe any unusual interaction, ruling, or edge case a competitive player would care about. Include what the card does NOT do if that distinction matters (e.g. "moves damage counters, not Energy").
+11. CARD STATS: Include HP, type(s), weakness, resistance, retreat cost written out in plain English.
+12. CONCEPTUAL TAGS: Add plain-English phrases a player might search for. E.g. for a card that does bench damage: "bench damage", "spread damage", "hits benched pokemon". For hand disruption: "discard opponent hand", "hand disruption", "mill". For energy moving: "move energy", "energy transfer", "energy switch". These tags ensure the description is findable by natural language searches even when card text uses different phrasing.
 
-Write in dense prose. Be specific and numeric. Do not be vague. A player searching "something that beats Charizard" or "1-prize wall with high HP" must find this card if it qualifies.
+Write in dense prose. Be specific and numeric. Do not be vague. A player searching "something that spreads damage to the bench" or "1-prize wall with high HP" or "hand disruption supporter" must find this card if it qualifies.
 
 Return a JSON array, one object per card, same order as input:
 [{"id": "...", "enriched": "...description..."}]

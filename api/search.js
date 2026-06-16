@@ -125,9 +125,9 @@ function statStoreFilter(store, criteria) {
 const INTENT_PROMPT = `You are a competitive Pokémon TCG search engine. Analyze the user's query and return a JSON object (no markdown).
 
 Query types:
-- "named_pokemon": wants cards to SUPPORT a specific Pokémon (e.g. "heal crustle", "energy for charizard", "works with dragapult")
-- "archetype": wants cards for a deck archetype (e.g. "lost box deck", "dragapult ex list")
-- "counter": wants to beat/counter something (e.g. "beat charizard", "counter lost box")
+- "named_pokemon": wants cards to SUPPORT a specific Pokémon (e.g. "heal crustle", "energy for dragapult", "works with mega lucario ex")
+- "archetype": wants cards for a deck archetype (e.g. "dragapult ex deck", "mega lucario ex list")
+- "counter": wants to beat/counter something (e.g. "beat dragapult ex", "counter alakazam dudunsparce")
 - "synergy": wants cards that combo with a named card (e.g. "works with iron hands", "pairs with iono")
 - "multi_constraint": has multiple simultaneous numeric/role requirements (e.g. "low energy high damage", "1 prize wall", "fast cheap attacker")
 - "budget": wants cheaper alternatives (e.g. "budget boss orders")
@@ -176,28 +176,35 @@ Rules:
 - "search deck for" → cardTextContains: "search your deck"
 - "heal multiple pokemon" / "heal all pokemon" / "heal your whole board" → cardTextContains: ["each of your", "all of your Pokémon", "each Pokémon"]
 - "prevent damage to all pokemon" / "protect whole board" → cardTextContains: ["each of your", "all Pokémon"]
-- "snipe whole bench" / "damage all benched" / "spread to every benched" → cardTextContains: ["to each of your opponent's Benched", "to your opponent's Benched Pokémon", "damage to all of your opponent's Benched"]
+- "snipe whole bench" / "damage all benched" / "spread to every benched" / "spread damage" / "spread damage to bench" → cardTextContains: ["each of your opponent's Benched Pokémon", "to each Benched Pokémon", "also does 10 damage to all of your opponent's Benched", "to all of your opponent's Benched", "each of your opponent's Benched"]
 - "inflict status" / "status condition" / "burn or poison" / "sleep or paralyze" → cardTextContains: ["is now Burned", "is now Poisoned", "is now Asleep", "is now Paralyzed", "is now Confused"]
 - "force opponent to switch" / "switch their active" / "bring up opponent's benched" → cardTextContains: ["your opponent switches their Active", "your opponent's Active Pokémon to their Bench", "your opponent puts their Active"]
-- "discard from opponent's hand" / "hand disruption" / "make opponent discard" → cardTextContains: ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2"]
+- "discard from opponent's hand" / "hand disruption" / "make opponent discard" / "discard opponent's hand" / "shuffle opponent's hand" → cardTextContains: ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2", "shuffles their hand into their deck and draws", "your opponent discards cards from their hand until", "shuffles their hand and puts it on the bottom", "each player discards cards from their hand until", "Each player shuffles their hand into their deck"]
 - "energy acceleration" / "accelerate energy" / "attach extra energy" (generic, no type specified) → do NOT set cardTextContains. Leave null, let reranker judge. Set rewritten_query to describe the mechanic clearly.
-- "accelerate fire energy" / "fire energy acceleration" → cardTextContains: "Fire Energy", requireTypes: null. This catches all cards that mention Fire Energy (accelerators, searchers, special energy) while excluding irrelevant types. The reranker then judges which are genuine accelerators vs discard costs.
-- "accelerate water energy" / "water energy acceleration" → cardTextContains: "Water Energy", requireTypes: null
-- "accelerate grass energy" / "grass energy acceleration" → cardTextContains: "Grass Energy", requireTypes: null
-- "accelerate lightning energy" / "lightning energy acceleration" → cardTextContains: "Lightning Energy", requireTypes: null
-- "accelerate psychic energy" / "psychic energy acceleration" → cardTextContains: "Psychic Energy", requireTypes: null
-- "accelerate fighting energy" / "fighting energy acceleration" → cardTextContains: "Fighting Energy", requireTypes: null
-- "accelerate darkness energy" / "dark energy acceleration" → cardTextContains: "Darkness Energy", requireTypes: null
-- "accelerate metal energy" / "metal energy acceleration" → cardTextContains: "Metal Energy", requireTypes: null
-- "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking"]
-- "retreat lock" / "prevent opponent from retreating" / "trap active" → cardTextContains: ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn"] — NOTE: cards that say "this Pokémon can't retreat" (self-restriction) do NOT qualify
+- "accelerate fire energy" / "fire energy acceleration" → do NOT set cardTextContains (a card like Blaziken that attaches "any Basic Energy" is a Fire accelerator but won't contain "Fire Energy"). requireTypes: null. Set rewritten_query: "cards that accelerate Fire energy — abilities or attacks that attach extra Basic Energy or specifically Fire Energy beyond the 1-per-turn rule, trainers that retrieve or search Fire Energy. Generic Basic Energy attachers like Blaziken qualify too."
+- "accelerate water energy" / "water energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Water energy — attach extra Water or Basic Energy beyond the 1-per-turn rule, retrieve/search Water Energy from discard or deck."
+- "accelerate grass energy" / "grass energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Grass energy beyond the 1-per-turn rule."
+- "accelerate lightning energy" / "lightning energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Lightning energy beyond the 1-per-turn rule."
+- "accelerate psychic energy" / "psychic energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Psychic energy beyond the 1-per-turn rule."
+- "accelerate fighting energy" / "fighting energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Fighting energy beyond the 1-per-turn rule."
+- "accelerate darkness energy" / "dark energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Darkness energy beyond the 1-per-turn rule."
+- "accelerate metal energy" / "metal energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Metal energy beyond the 1-per-turn rule."
+- "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking", "the Defending Pokémon can't attack", "Pokémon that have 2 or less Energy attached can't attack", "can't use that attack"]
+- "retreat lock" / "prevent opponent from retreating" / "trap active" → cardTextContains: ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn", "that Pokémon can't retreat"] — NOTE: cards that say "this Pokémon can't retreat" (self-restriction) do NOT qualify
 - "item lock" / "prevent opponent playing items" / "block items" → cardTextContains: ["can't play any Item cards from their hand", "your opponent can't play any Item cards"]
 - "ability lock" / "shut off abilities" / "disable abilities" / "no abilities" → cardTextContains: ["have no Abilities", "has no Abilities"]  — NOTE: be careful, many stadium/tool cards say this; include all types
 - "gust" / "boss effect" / "bring up benched" / "force active" / "bench to active" → cardTextContains: ["Switch in 1 of your opponent's Benched Pokémon to the Active Spot", "your opponent switches their Active Pokémon with 1 of their Benched", "put 1 of your opponent's Benched Pokémon into the Active Spot"]
 - "bench snipe" / "damage benched pokemon" / "hit the bench" / "snipe" → cardTextContains: ["to 1 of your opponent's Benched Pokémon", "damage counter on 1 of your opponent's Benched", "on 1 of your opponent's Benched Pokémon"]
 - "evolution lock" / "prevent evolution" / "stop opponent evolving" → cardTextContains: ["can't play any Pokémon from their hand to evolve their Pokémon", "can't play any Pokémon to evolve"]
-- "extra prize" / "take more prizes" / "additional prize card" → cardTextContains: ["take 1 more Prize card", "take an additional Prize card", "take 2 more Prize cards", "take 1 Prize card from your opponent"]
-- "discard opponent energy" / "energy removal" / "strip energy" → cardTextContains: ["Discard an Energy from your opponent's Active", "discard all Energy attached to your opponent's Active", "discard a Special Energy"]
+- "extra prize" / "take more prizes" / "additional prize card" → cardTextContains: ["take 1 more Prize card", "take an additional Prize card", "take 2 more Prize cards", "take 3 more Prize cards", "take 1 Prize card from your opponent"]
+- "discard opponent energy" / "energy removal" / "strip energy" → cardTextContains: ["Discard an Energy from your opponent's Active", "discard all Energy attached to your opponent's Active", "discard a Special Energy", "Pokémon Tools and Special Energy from your opponent's Active", "Pokémon Tools and Special Energy from all of your opponent's Pokémon"]
+- "move energy between pokemon" / "energy transfer" / "move energy from one pokemon to another" → cardTextContains: ["Move a Basic Energy from 1 of your Pokémon to another", "move a Basic Energy from 1 of your Pokémon to another of your Pokémon", "Move an Energy from 1 of your Pokémon to another", "Move a Basic Grass Energy from 1 of your Pokémon to another", "Move an Energy from 1 of your opponent's Pokémon to another"]
+- "pokemon that multiply damage" / "multiply existing damage" / "more damage per damage counter" / "damage based on damage counters" / "damage scales with damage counters" → cardTextContains: ["more damage for each damage counter on your opponent's Active", "for each damage counter on all", "damage for each damage counter on your opponent's Active", "damage for each damage counter on this Pokémon", "damage for each damage counter on the Defending", "10 more damage for each damage counter", "20 more damage for each damage counter", "30 more damage for each damage counter", "50 more damage for each damage counter", "70 more damage for each damage counter", "has any damage counters on it", "for each damage counter on that Pokémon", "damage counter you placed in this way"]
+- "move damage counters" / "transfer damage counters" / "redirect damage counters" / "place damage counters from one to another" → cardTextContains: ["move any number of damage counters", "move all damage counters from", "move up to 3 damage counters", "move up to 2 damage counters", "move up to 1 damage counter", "move 3 damage counters", "move 2 damage counters", "move 1 damage counter", "move damage counters"]
+- "get energy from discard pile" / "retrieve energy from discard" / "recover energy from discard" / "energy from discard" → cardTextContains: ["Basic Energy card from your discard pile", "Basic Energy cards from your discard pile", "Energy card from your discard pile", "Energy cards from your discard pile", "from your discard pile to 1 of your Benched", "from your discard pile to your Benched Pokémon in any way you like"]
+- "get pokemon from discard pile" / "retrieve pokemon from discard" / "recover pokemon from discard" / "pokemon recovery" / "salvage pokemon from discard" → cardTextContains: ["from your discard pile onto your Bench", "Pokémon from your discard pile", "Pokémon or a Basic Energy card from your discard pile"]
+- "get trainer from discard" / "get supporter from discard" / "get item from discard" / "retrieve trainer from discard" / "recover trainer from discard" / "trainer recovery" / "supporter recovery" → cardTextContains: ["Trainer card from your discard pile", "Supporter card from your discard pile", "Supporter cards from your discard pile", "Item card from your discard pile", "Item cards from your discard pile"]
+- "gamble" / "coin flip" / "flip a coin" / "luck-based" / "chance cards" → cardTextContains: ["Flip a coin", "flip a coin until you get tails"]
 - cardTextContains is ONLY appropriate when the mechanic has a single, exact, consistent phrase in card text (e.g. lock effects, gust, status conditions). Do NOT use cardTextContains for conceptual mechanics that can be expressed many different ways across card text — energy acceleration, healing, drawing, searching, damage movement. For those, leave cardTextContains null and write a precise rewritten_query so the vector search + reranker can judge.
 - NEVER set requireSupertype when the query is about a mechanic that could appear on any card type — healing, drawing, searching, energy acceleration, damage placement, status effects, deck searching all appear on both Pokémon abilities/attacks AND trainer cards. Only set requireSupertype when the user explicitly says "pokemon", "trainer", "item", "supporter", "stadium", or "energy card". When in doubt, leave requireSupertype null.
 - NEVER set requireTypes when the query is about accelerating, attaching, or searching for a specific energy type — e.g. "accelerate fire energy" should NOT set requireTypes: ["Fire"]. Cards that accelerate Fire energy include Stadiums, Supporters, and non-Fire Pokémon. requireTypes only applies when the user asks for Pokémon OF that type (e.g. "fire pokemon", "water type attacker").
@@ -210,8 +217,8 @@ Examples:
 - "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
 - "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
 - "search deck for basic pokemon" / "find basic pokemon from deck" / "get basic from deck" → requireSupertype: null (Pokémon attacks like Call for Family and Abilities like Fan Rotom's also search the deck for Basics — do NOT restrict to trainer), cardTextContains: "search your deck"
-- "accelerate fire energy" → cardTextContains: "Fire Energy", requireTypes: null, rewritten_query: "cards that accelerate Fire energy — abilities or attacks that attach extra Basic Fire Energy beyond the 1-per-turn rule, or trainers that search/retrieve Fire Energy. Includes hand attachment, discard pile attachment, and deck search."
-- "accelerate water energy" → cardTextContains: "Water Energy", requireTypes: null, rewritten_query: "cards that accelerate Water energy beyond the 1-per-turn rule"
+- "accelerate fire energy" → cardTextContains: null, requireTypes: null, rewritten_query: "cards that accelerate Fire energy — abilities or attacks that attach extra Basic Energy or specifically Fire Energy beyond the 1-per-turn rule, trainers that search/retrieve Fire Energy. Generic Basic Energy attachers like Blaziken qualify."
+- "accelerate water energy" → cardTextContains: null, requireTypes: null, rewritten_query: "cards that accelerate Water energy beyond the 1-per-turn rule"
 - "move damage from my pokemon to opponents pokemon" → cardTextContains: "move damage counters", rewritten_query: "ability or attack that moves or transfers damage counters from your pokemon to opponent's pokemon. Damage counter manipulation, redirect damage."
 - "1 prize attacker" → excludePokemonRule: true, requireSupertype: "pokemon", rewritten_query: "single prize non-ex non-V attacker"
 - "pokemon with an ability" → requireAbility: true, requireSupertype: "pokemon"
@@ -258,7 +265,7 @@ async function classifyQuery(query, archetypes) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: 700,
         messages: [{ role: 'user', content: INTENT_PROMPT + `"${expandedQuery}"` }]
       })
@@ -546,7 +553,7 @@ ${JSON.stringify(cardSummaries, null, 1)}`;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model, max_tokens: 2048, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await r.json();
     const text = data.content?.map(b => b.text || '').join('') || '';
@@ -634,7 +641,20 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v14:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v33:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+
+  // Log query asynchronously — fire and forget, never blocks search
+  if (KV_URL && KV_TOKEN) {
+    const entry = JSON.stringify({ q: query.trim(), t: typeFilter || 'standard', ts: Date.now() });
+    fetch(`${KV_URL}/pipeline`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([
+        ['LPUSH', 'query_log', entry],
+        ['LTRIM', 'query_log', 0, 4999]  // keep last 5000
+      ])
+    }).catch(() => {});
+  }
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Transfer-Encoding', 'chunked');
@@ -663,14 +683,17 @@ export default async function handler(req, res) {
       primaryQuery = buildArchetypeQuery(intent);
     }
 
-    // If a specific card text mechanic was identified, add it as an extra search angle
+    // If a specific card text mechanic was identified, add multiple focused phrase queries
+    // Use the raw phrases directly — the "pokemon card with..." prefix dilutes the embedding signal
     const mechanic = intent.criteria?.cardTextContains;
-    const mechanicPhrases = mechanic ? [mechanic].flat().slice(0, 3).join(' OR ') : null;
-    const mechanicQuery = mechanicPhrases ? `pokemon card with ability or attack text: ${mechanicPhrases}` : null;
+    const mechanicPhraseList = mechanic ? [mechanic].flat().slice(0, 4) : [];
+    // Generate up to 2 mechanic queries: one from the most specific phrase, one combining the top 2
+    const mechanicQuery  = mechanicPhraseList[0] || null;
+    const mechanicQuery2 = mechanicPhraseList[1] || null;
 
-    // Build query list: primary + mechanic variant + up to 2 alternatives from intent
+    // Build query list: primary + mechanic phrases + up to 2 alternatives from intent
     const altQueries = (intent.alternative_queries || []).slice(0, 2);
-    const allQueries = [primaryQuery, mechanicQuery, ...altQueries].filter(Boolean);
+    const allQueries = [primaryQuery, mechanicQuery, mechanicQuery2, ...altQueries].filter(Boolean);
 
     // ── parallel vector searches (RRF merge) — use cache if available ──
     let vectorCards;
@@ -678,8 +701,13 @@ export default async function handler(req, res) {
       vectorCards = cachedCandidates;
     } else {
       const resultSets = await Promise.all(
-        allQueries.map(q => vectorSearch(q, typeFilter, 100))
+        allQueries.map((q, i) => vectorSearch(q, typeFilter, (i === 1 || i === 2) && (mechanicQuery || mechanicQuery2) ? 500 : 100))
       );
+      // When type filter is active, add a broad sweep so enough type-filtered cards surface
+      if (typeFilter) {
+        const broadTypeQuery = `${typeFilter} type pokemon attacker`;
+        resultSets.push(await vectorSearch(broadTypeQuery, typeFilter, 400));
+      }
       vectorCards = mergeRRF(resultSets);
       cacheSet(cacheKey, vectorCards);
     }
@@ -711,7 +739,7 @@ export default async function handler(req, res) {
     }
 
     if (!cards.length) {
-      write({ _done: true, _count: 0 });
+      write({ _done: true, _count: 0, _debug: { intent: intent.type, criteria: intent.criteria, candidateCount: vectorCards.length, afterFilter: 0, fallbackFired: false } });
       return res.end();
     }
 
@@ -726,10 +754,8 @@ export default async function handler(req, res) {
       // Relax numeric constraints first
       const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
       if (f2.length > 0) return f2;
-      // If cardTextContains phrases didn't match any card text, try dropping only
-      // the text filter (keeps other structural filters like requireSupertype etc.)
-      // Only accept f3 if it actually narrowed the pool — otherwise it's no better
-      // than returning everything and we should signal fallback to the user.
+      // If cardTextContains phrases didn't match any card text, drop only the text
+      // filter so other structural constraints still apply
       if (intent.criteria?.cardTextContains) {
         const f3 = applyStructuredFilters(deduped, { ...intent.criteria, cardTextContains: null, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
         if (f3.length > 0 && f3.length < deduped.length) return f3;
@@ -743,9 +769,30 @@ export default async function handler(req, res) {
     const safePreFiltered = preFiltered.length > 0 ? preFiltered : hardFiltered;
 
     const posIds = await getPositiveIds(query, safePreFiltered.map(c => c.id));
+
+    // ── phrase-match boost: cards containing the exact cardTextContains phrases
+    // are sorted to the front of the reranker input so they're guaranteed to be
+    // evaluated even when the reranker cap truncates the candidate list.
+    const ctcPhrases = intent.criteria?.cardTextContains
+      ? (Array.isArray(intent.criteria.cardTextContains) ? intent.criteria.cardTextContains : [intent.criteria.cardTextContains]).flat()
+      : [];
+    const matchesPhrase = (card) => {
+      if (!ctcPhrases.length) return false;
+      const norm = s => (typeof s === 'string' ? s : '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const combined = [
+        ...(card.abilities || []).map(a => norm(a.text)),
+        ...(card.attacks   || []).map(a => norm(a.text)),
+        ...(card.rules     || []).map(norm),
+      ].join(' ');
+      return ctcPhrases.some(p => combined.includes(norm(p)));
+    };
+    const phraseMatches    = safePreFiltered.filter(matchesPhrase);
+    const phraseNonMatches = safePreFiltered.filter(c => !matchesPhrase(c));
+    const phraseSorted = [...phraseMatches, ...phraseNonMatches];
+
     const boosted = posIds.size
-      ? [...safePreFiltered.filter(c => posIds.has(c.id)), ...safePreFiltered.filter(c => !posIds.has(c.id))]
-      : safePreFiltered;
+      ? [...phraseSorted.filter(c => posIds.has(c.id)), ...phraseSorted.filter(c => !posIds.has(c.id))]
+      : phraseSorted;
 
     // ── stream initial results immediately ──
     const initialResults = boosted.map(c => ({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) }));
@@ -772,16 +819,17 @@ export default async function handler(req, res) {
     let finalResults = initialResults;
 
     if (needsRerank && hardFiltered.length > 0) {
-      const reranked = await rerank(query, intent, hardFiltered.slice(0, 80));
+      const usesSonnet = ['multi_constraint', 'counter'].includes(intent.type);
+      const rerankCap = usesSonnet ? 40 : 120;
+      // Use phraseSorted so exact-phrase matches are always in the top rerankCap slots
+      const reranked = await rerank(query, intent, phraseSorted.slice(0, rerankCap));
       const filteredReranked = await filterFlagged(query, reranked);
       const safeReranked = filteredReranked.length > 0 ? filteredReranked : reranked;
 
-      // Apply positive boost to re-ranked set too
       const rerankedBoosted = posIds.size
         ? [...safeReranked.filter(c => posIds.has(c.id)), ...safeReranked.filter(c => !posIds.has(c.id))]
         : safeReranked;
 
-      // Stream any new cards the re-ranker surfaced
       const streamedIds = new Set(initialResults.map(m => m.id));
       for (const c of rerankedBoosted) {
         if (!streamedIds.has(c.id)) write({ id: c.id, name: c.name, relevance: 'high', card: normalizeCard(c) });
