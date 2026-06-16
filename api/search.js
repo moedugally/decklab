@@ -54,7 +54,7 @@ const VECTOR_URL   = process.env.UPSTASH_VECTOR_REST_URL;
 const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const CACHE_TTL = 60 * 60 * 6; // 6 hours — candidates only, logic always re-runs
-const NEGATIVE_THRESHOLD = 1;
+const NEGATIVE_THRESHOLD = 3;
 const STATS_KEY = 'statsindex';
 
 // ── cache ─────────────────────────────────────────────────────────────────────
@@ -125,6 +125,7 @@ function statStoreFilter(store, criteria) {
 const INTENT_PROMPT = `You are a competitive Pokémon TCG search engine. Analyze the user's query and return a JSON object (no markdown).
 
 Query types:
+- "name_lookup": user wants to see all printings of a specific named card. Triggers ONLY when: (a) the query is just a Pokémon/card name with no functional description (e.g. "charizard ex", "moltres", "iron hands ex", "lillie's clefairy ex"), OR (b) the user explicitly says "pokemon named X", "the pokemon X", "show me X", "find X", "cards named X", "search for X" where X is clearly a card name. Do NOT use for queries that describe what a card DOES (e.g. "pikachu spread damage", "charizard energy acceleration") — those are "general". Set named_card to the card name. All other criteria fields should be null/empty.
 - "named_pokemon": wants cards to SUPPORT a specific Pokémon (e.g. "heal crustle", "energy for dragapult", "works with mega lucario ex")
 - "archetype": wants cards for a deck archetype (e.g. "dragapult ex deck", "mega lucario ex list")
 - "counter": wants to beat/counter something (e.g. "beat dragapult ex", "counter alakazam dudunsparce")
@@ -173,7 +174,11 @@ Rules:
 - "1 prize" / "non-ex" / "non-V" / "single prize" → excludePokemonRule: true
 - "move damage" / "transfer damage counters" → cardTextContains: "move damage counters"
 - "discard energy from opponent" → cardTextContains: "discard an Energy"
-- "search deck for" → cardTextContains: "search your deck"
+- "search deck for basic pokemon" / "search deck for basic pokémon" / "find basic pokemon from deck" / "get basic from deck" → IMPORTANT: this exact rule takes priority whenever the word "basic" appears with "pokemon"/"pokémon" in a search-deck query — do NOT fall back to the generic "search deck for" rule below in that case. cardTextContains: ["Basic Pokémon and put it onto your Bench", "Basic Pokémon and put them onto your Bench", "Basic Pokémon or 1 Evolution Pokémon, reveal them", "a Basic Pokémon, a Stage 1 Pokémon, and a Stage 2 Pokémon"]
+- "search deck for" (generic, no "basic pokemon" specified) → cardTextContains: "search your deck"
+- "heal damage" / "heal damage from pokemon" / "heal damage from my pokemon" / "restore hp" → cardTextContains: ["heal damage", "heal 10 damage", "heal 20 damage", "heal 30 damage", "heal 40 damage", "heal 50 damage", "heal 60 damage", "heal 70 damage", "heal 80 damage", "heal 90 damage", "heal 100 damage", "heal 120 damage", "heal 150 damage", "heal all damage"]
+- "draw cards" / "draw cards from deck" / "draw a lot of cards" / "card draw" → cardTextContains: ["draw a card", "draw 2 cards", "draw 3 cards", "draw 4 cards", "draw 5 cards", "draw 6 cards", "draw cards until", "you draw", "draws 3 cards", "draws 4 cards", "each player draws"]
+- "bench protection" / "bench protection ability" / "protect benched pokemon" / "prevent damage to bench" → MANDATORY for this query: you MUST set rewritten_query to exactly this string (do not paraphrase or shorten it, the exact wording matters for retrieval): "benched pokemon immune to damage, damage shield while benched, bench protection ability, bench barrier, safe on the bench, prevent damage to pokemon on the bench, defensive tech for the bench, resilient against bench-snipe and spread damage attackers". You MUST also set cardTextContains to exactly: ["on your Bench, prevent all damage", "As long as this Pokémon is on your Bench, prevent all damage done to this Pokémon by attacks", "prevent all damage done to your Benched Pokémon", "prevent all damage from and effects of attacks from your opponent's Pokémon done to this Pokémon"]. Never leave either of these null or empty for this query.
 - "heal multiple pokemon" / "heal all pokemon" / "heal your whole board" → cardTextContains: ["each of your", "all of your Pokémon", "each Pokémon"]
 - "prevent damage to all pokemon" / "protect whole board" → cardTextContains: ["each of your", "all Pokémon"]
 - "snipe whole bench" / "damage all benched" / "spread to every benched" / "spread damage" / "spread damage to bench" → cardTextContains: ["each of your opponent's Benched Pokémon", "to each Benched Pokémon", "also does 10 damage to all of your opponent's Benched", "to all of your opponent's Benched", "each of your opponent's Benched"]
@@ -181,14 +186,14 @@ Rules:
 - "force opponent to switch" / "switch their active" / "bring up opponent's benched" → cardTextContains: ["your opponent switches their Active", "your opponent's Active Pokémon to their Bench", "your opponent puts their Active"]
 - "discard from opponent's hand" / "hand disruption" / "make opponent discard" / "discard opponent's hand" / "shuffle opponent's hand" → cardTextContains: ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2", "shuffles their hand into their deck and draws", "your opponent discards cards from their hand until", "shuffles their hand and puts it on the bottom", "each player discards cards from their hand until", "Each player shuffles their hand into their deck"]
 - "energy acceleration" / "accelerate energy" / "attach extra energy" (generic, no type specified) → do NOT set cardTextContains. Leave null, let reranker judge. Set rewritten_query to describe the mechanic clearly.
-- "accelerate fire energy" / "fire energy acceleration" → do NOT set cardTextContains (a card like Blaziken that attaches "any Basic Energy" is a Fire accelerator but won't contain "Fire Energy"). requireTypes: null. Set rewritten_query: "cards that accelerate Fire energy — abilities or attacks that attach extra Basic Energy or specifically Fire Energy beyond the 1-per-turn rule, trainers that retrieve or search Fire Energy. Generic Basic Energy attachers like Blaziken qualify too."
-- "accelerate water energy" / "water energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Water energy — attach extra Water or Basic Energy beyond the 1-per-turn rule, retrieve/search Water Energy from discard or deck."
-- "accelerate grass energy" / "grass energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Grass energy beyond the 1-per-turn rule."
-- "accelerate lightning energy" / "lightning energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Lightning energy beyond the 1-per-turn rule."
-- "accelerate psychic energy" / "psychic energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Psychic energy beyond the 1-per-turn rule."
-- "accelerate fighting energy" / "fighting energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Fighting energy beyond the 1-per-turn rule."
-- "accelerate darkness energy" / "dark energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Darkness energy beyond the 1-per-turn rule."
-- "accelerate metal energy" / "metal energy acceleration" → do NOT set cardTextContains. requireTypes: null. rewritten_query: "cards that accelerate Metal energy beyond the 1-per-turn rule."
+- "accelerate fire energy" / "fire energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Fire Energy card", "attach up to 2 Basic Fire Energy", "search your deck for a Basic Fire Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
+- "accelerate water energy" / "water energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Water Energy card", "attach up to 2 Basic Water Energy", "search your deck for a Basic Water Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
+- "accelerate grass energy" / "grass energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Grass Energy card", "attach up to 2 Basic Grass Energy", "search your deck for a Basic Grass Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
+- "accelerate lightning energy" / "lightning energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Lightning Energy card", "attach up to 2 Basic Lightning Energy", "search your deck for a Basic Lightning Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
+- "accelerate psychic energy" / "psychic energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Psychic Energy card", "attach up to 2 Basic Psychic Energy", "search your deck for a Basic Psychic Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
+- "accelerate fighting energy" / "fighting energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Fighting Energy card", "attach up to 2 Basic Fighting Energy", "search your deck for a Basic Fighting Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
+- "accelerate darkness energy" / "dark energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Darkness Energy card", "attach up to 2 Basic Darkness Energy", "search your deck for a Basic Darkness Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
+- "accelerate metal energy" / "metal energy acceleration" → cardTextContains: ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Metal Energy card", "attach up to 2 Basic Metal Energy", "search your deck for a Basic Metal Energy card and attach", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from their hand", "Basic Energy card you find there"]
 - "prevent opponent from attacking" / "attack lock" / "can't attack" → cardTextContains: ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking", "the Defending Pokémon can't attack", "Pokémon that have 2 or less Energy attached can't attack", "can't use that attack"]
 - "retreat lock" / "prevent opponent from retreating" / "trap active" → cardTextContains: ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn", "that Pokémon can't retreat"] — NOTE: cards that say "this Pokémon can't retreat" (self-restriction) do NOT qualify
 - "item lock" / "prevent opponent playing items" / "block items" → cardTextContains: ["can't play any Item cards from their hand", "your opponent can't play any Item cards"]
@@ -198,27 +203,34 @@ Rules:
 - "evolution lock" / "prevent evolution" / "stop opponent evolving" → cardTextContains: ["can't play any Pokémon from their hand to evolve their Pokémon", "can't play any Pokémon to evolve"]
 - "extra prize" / "take more prizes" / "additional prize card" → cardTextContains: ["take 1 more Prize card", "take an additional Prize card", "take 2 more Prize cards", "take 3 more Prize cards", "take 1 Prize card from your opponent"]
 - "discard opponent energy" / "energy removal" / "strip energy" → cardTextContains: ["Discard an Energy from your opponent's Active", "discard all Energy attached to your opponent's Active", "discard a Special Energy", "Pokémon Tools and Special Energy from your opponent's Active", "Pokémon Tools and Special Energy from all of your opponent's Pokémon"]
-- "move energy between pokemon" / "energy transfer" / "move energy from one pokemon to another" → cardTextContains: ["Move a Basic Energy from 1 of your Pokémon to another", "move a Basic Energy from 1 of your Pokémon to another of your Pokémon", "Move an Energy from 1 of your Pokémon to another", "Move a Basic Grass Energy from 1 of your Pokémon to another", "Move an Energy from 1 of your opponent's Pokémon to another"]
+- "move energy between pokemon" / "energy transfer" / "move energy from one pokemon to another" → cardTextContains: ["energy from 1 of your Pokémon to another", "energy from this Pokémon to 1 of your Benched", "Benched Pokémon to your Active Pokémon", "energy from 1 of your other Pokémon to this Pokémon", "energy from this Pokémon to your Benched Pokémon in any way", "energy from this Pokémon to the new Benched Pokémon", "energy from your opponent's Active Pokémon to 1 of their Benched", "energy from the Attacking Pokémon to 1 of your opponent's Benched", "energy from 1 of your opponent's Pokémon to another"]
 - "pokemon that multiply damage" / "multiply existing damage" / "more damage per damage counter" / "damage based on damage counters" / "damage scales with damage counters" → cardTextContains: ["more damage for each damage counter on your opponent's Active", "for each damage counter on all", "damage for each damage counter on your opponent's Active", "damage for each damage counter on this Pokémon", "damage for each damage counter on the Defending", "10 more damage for each damage counter", "20 more damage for each damage counter", "30 more damage for each damage counter", "50 more damage for each damage counter", "70 more damage for each damage counter", "has any damage counters on it", "for each damage counter on that Pokémon", "damage counter you placed in this way"]
 - "move damage counters" / "transfer damage counters" / "redirect damage counters" / "place damage counters from one to another" → cardTextContains: ["move any number of damage counters", "move all damage counters from", "move up to 3 damage counters", "move up to 2 damage counters", "move up to 1 damage counter", "move 3 damage counters", "move 2 damage counters", "move 1 damage counter", "move damage counters"]
 - "get energy from discard pile" / "retrieve energy from discard" / "recover energy from discard" / "energy from discard" → cardTextContains: ["Basic Energy card from your discard pile", "Basic Energy cards from your discard pile", "Energy card from your discard pile", "Energy cards from your discard pile", "from your discard pile to 1 of your Benched", "from your discard pile to your Benched Pokémon in any way you like"]
 - "get pokemon from discard pile" / "retrieve pokemon from discard" / "recover pokemon from discard" / "pokemon recovery" / "salvage pokemon from discard" → cardTextContains: ["from your discard pile onto your Bench", "Pokémon from your discard pile", "Pokémon or a Basic Energy card from your discard pile"]
 - "get trainer from discard" / "get supporter from discard" / "get item from discard" / "retrieve trainer from discard" / "recover trainer from discard" / "trainer recovery" / "supporter recovery" → cardTextContains: ["Trainer card from your discard pile", "Supporter card from your discard pile", "Supporter cards from your discard pile", "Item card from your discard pile", "Item cards from your discard pile"]
 - "gamble" / "coin flip" / "flip a coin" / "luck-based" / "chance cards" → cardTextContains: ["Flip a coin", "flip a coin until you get tails"]
-- cardTextContains is ONLY appropriate when the mechanic has a single, exact, consistent phrase in card text (e.g. lock effects, gust, status conditions). Do NOT use cardTextContains for conceptual mechanics that can be expressed many different ways across card text — energy acceleration, healing, drawing, searching, damage movement. For those, leave cardTextContains null and write a precise rewritten_query so the vector search + reranker can judge.
+- cardTextContains is ONLY appropriate when the mechanic has a single, exact, consistent phrase in card text (e.g. lock effects, gust, status conditions, healing, drawing, energy acceleration — these all use a small set of consistent numeric phrasings, so use the phrase lists given above rather than leaving null). Only leave cardTextContains null for mechanics with genuinely no consistent phrasing (e.g. open-ended "search" deck-thinning effects, generic damage output).
 - NEVER set requireSupertype when the query is about a mechanic that could appear on any card type — healing, drawing, searching, energy acceleration, damage placement, status effects, deck searching all appear on both Pokémon abilities/attacks AND trainer cards. Only set requireSupertype when the user explicitly says "pokemon", "trainer", "item", "supporter", "stadium", or "energy card". When in doubt, leave requireSupertype null.
 - NEVER set requireTypes when the query is about accelerating, attaching, or searching for a specific energy type — e.g. "accelerate fire energy" should NOT set requireTypes: ["Fire"]. Cards that accelerate Fire energy include Stadiums, Supporters, and non-Fire Pokémon. requireTypes only applies when the user asks for Pokémon OF that type (e.g. "fire pokemon", "water type attacker").
 - alternative_queries must be genuinely different angles
 
 Examples:
+- "charizard ex" → type: name_lookup, named_card: "Charizard ex"
+- "moltres" → type: name_lookup, named_card: "Moltres"
+- "pokemon named pikachu" → type: name_lookup, named_card: "Pikachu"
+- "the pokemon iron hands ex" → type: name_lookup, named_card: "Iron Hands ex"
+- "show me lillie's clefairy ex" → type: name_lookup, named_card: "Lillie's Clefairy ex"
+- "find dragapult ex" → type: name_lookup, named_card: "Dragapult ex"
+- "charizard energy acceleration" → type: named_pokemon (NOT name_lookup — has a mechanic description)
 - "heal crustle" → type: named_pokemon, excludeNames: ["Crustle"], rewritten_query: "trainer cards and abilities that remove damage counters or restore HP."
 - "heal multiple pokemon at once" / "heal your whole board" / "heal all your pokemon" → requireSupertype: null (healing can come from Pokémon abilities AND trainer cards — do NOT restrict to trainer), cardTextContains: ["each of your Pokémon", "all of your Pokémon", "each Pokémon in play", "remove all damage", "heal all"]
 - "heal one pokemon" / "restore HP" / "remove damage counters" → requireSupertype: null (same — do NOT assume trainer), cardTextContains: ["remove", "heal", "restore HP"]
 - "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
 - "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
-- "search deck for basic pokemon" / "find basic pokemon from deck" / "get basic from deck" → requireSupertype: null (Pokémon attacks like Call for Family and Abilities like Fan Rotom's also search the deck for Basics — do NOT restrict to trainer), cardTextContains: "search your deck"
-- "accelerate fire energy" → cardTextContains: null, requireTypes: null, rewritten_query: "cards that accelerate Fire energy — abilities or attacks that attach extra Basic Energy or specifically Fire Energy beyond the 1-per-turn rule, trainers that search/retrieve Fire Energy. Generic Basic Energy attachers like Blaziken qualify."
-- "accelerate water energy" → cardTextContains: null, requireTypes: null, rewritten_query: "cards that accelerate Water energy beyond the 1-per-turn rule"
+- "search deck for basic pokemon" / "find basic pokemon from deck" / "get basic from deck" → requireSupertype: null (Pokémon attacks like Call for Family and Abilities like Fan Rotom's also search the deck for Basics — do NOT restrict to trainer), cardTextContains: ["Basic Pokémon and put it onto your Bench", "Basic Pokémon and put them onto your Bench"]
+- "accelerate fire energy" → requireTypes: null, cardTextContains: ["attach a Basic Fire Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Energy card from your hand to"]
+- "accelerate water energy" → requireTypes: null, cardTextContains: ["attach a Basic Water Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Energy card from your hand to"]
 - "move damage from my pokemon to opponents pokemon" → cardTextContains: "move damage counters", rewritten_query: "ability or attack that moves or transfers damage counters from your pokemon to opponent's pokemon. Damage counter manipulation, redirect damage."
 - "1 prize attacker" → excludePokemonRule: true, requireSupertype: "pokemon", rewritten_query: "single prize non-ex non-V attacker"
 - "pokemon with an ability" → requireAbility: true, requireSupertype: "pokemon"
@@ -631,6 +643,38 @@ function dedupeByBaseRarity(cards) {
   return [...reprints.values()];
 }
 
+// ── name search ───────────────────────────────────────────────────────────────
+
+async function fetchByName(query, typeFilter) {
+  const markFilter = STANDARD_MARKS.map(m => `regulationMark:${m}`).join(' OR ');
+  const words = query.trim().split(/\s+/);
+  // Use exact match when a qualifier suffix is present (ex, vmax, vstar, v, gx).
+  // Use partial match for bare names so "Charizard" catches Charizard ex, VMAX, etc.
+  const SUFFIXES = new Set(['ex', 'v', 'vmax', 'vstar', 'gx', 'gl', 'c', 'e']);
+  const hasSuffix = SUFFIXES.has(words[words.length - 1].toLowerCase());
+  const nameQ = hasSuffix || words.length > 1 ? `name:"${query}"` : `name:${query}`;
+
+  const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`${nameQ} (${markFilter})`)}&pageSize=100&orderBy=-set.releaseDate`;
+  const r = await fetch(url);
+  if (!r.ok) return [];
+  const data = await r.json();
+
+  let cards = (data.data || []).filter(c => STANDARD_MARKS.includes(c.regulationMark));
+  if (typeFilter) cards = cards.filter(c => (c.types || []).includes(typeFilter));
+
+  // One card per (name × set), keeping the lowest rarity (base rare over full art / hyper rare)
+  const groups = new Map();
+  for (const card of cards) {
+    const key = `${(card.name || '').toLowerCase()}|${card.set?.id || ''}`;
+    const existing = groups.get(key);
+    if (!existing || rarityRank(card.rarity) < rarityRank(existing.rarity)) {
+      groups.set(key, card);
+    }
+  }
+
+  return [...groups.values()];
+}
+
 // ── main handler ──────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -641,7 +685,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v33:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v45:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
@@ -675,6 +719,19 @@ export default async function handler(req, res) {
     ]);
     const intent = await classifyQuery(query, archetypes);
 
+    // ── name lookup shortcut ──
+    if (intent.type === 'name_lookup' && intent.named_card) {
+      const nameCards = await fetchByName(intent.named_card, typeFilter);
+      if (nameCards.length > 0) {
+        for (const card of nameCards) {
+          write({ id: card.id, name: card.name, relevance: 'high', card: normalizeCard(card) });
+        }
+        write({ _done: true, _count: nameCards.length, _debug: { intent: 'name_lookup', named_card: intent.named_card } });
+        return res.end();
+      }
+      // If TCG API returned nothing (misspelling etc.), fall through to semantic search
+    }
+
     // ── build search queries ──
     let primaryQuery = intent.rewritten_query || query;
     if (intent.type === 'named_pokemon' && intent.named_card) {
@@ -685,15 +742,18 @@ export default async function handler(req, res) {
 
     // If a specific card text mechanic was identified, add multiple focused phrase queries
     // Use the raw phrases directly — the "pokemon card with..." prefix dilutes the embedding signal
+    // Query up to 6 phrases individually (not just the first 2) since each exact phrase often
+    // embeds very differently — a card matching phrase #5 may never surface from phrase #1's query.
     const mechanic = intent.criteria?.cardTextContains;
-    const mechanicPhraseList = mechanic ? [mechanic].flat().slice(0, 4) : [];
-    // Generate up to 2 mechanic queries: one from the most specific phrase, one combining the top 2
+    const mechanicPhraseList = mechanic ? [mechanic].flat().slice(0, 6) : [];
     const mechanicQuery  = mechanicPhraseList[0] || null;
     const mechanicQuery2 = mechanicPhraseList[1] || null;
 
     // Build query list: primary + mechanic phrases + up to 2 alternatives from intent
     const altQueries = (intent.alternative_queries || []).slice(0, 2);
-    const allQueries = [primaryQuery, mechanicQuery, mechanicQuery2, ...altQueries].filter(Boolean);
+    const mechanicExtraQueries = mechanicPhraseList.slice(2); // phrases 3-6
+    const allQueries = [primaryQuery, mechanicQuery, mechanicQuery2, ...mechanicExtraQueries, ...altQueries].filter(Boolean);
+    const mechanicQueryCount = [mechanicQuery, mechanicQuery2, ...mechanicExtraQueries].filter(Boolean).length;
 
     // ── parallel vector searches (RRF merge) — use cache if available ──
     let vectorCards;
@@ -701,7 +761,7 @@ export default async function handler(req, res) {
       vectorCards = cachedCandidates;
     } else {
       const resultSets = await Promise.all(
-        allQueries.map((q, i) => vectorSearch(q, typeFilter, (i === 1 || i === 2) && (mechanicQuery || mechanicQuery2) ? 500 : 100))
+        allQueries.map((q, i) => vectorSearch(q, typeFilter, (i >= 1 && i <= mechanicQueryCount) ? 600 : 100))
       );
       // When type filter is active, add a broad sweep so enough type-filtered cards surface
       if (typeFilter) {
@@ -725,7 +785,7 @@ export default async function handler(req, res) {
         const vectorIds = new Set(vectorCards.map(c => c.id));
         // Convert stat store entries to the same shape as vector results
         const newFromStats = statMatches
-          .filter(s => !vectorIds.has(s.id))
+          .filter(s => !vectorIds.has(s.id) && (!typeFilter || (s.types || []).includes(typeFilter)))
           .map(s => ({
             id: s.id, name: s.name, supertype: s.supertype, subtypes: s.subtypes,
             types: s.types, abilities: s.abilities, attacks: s.attacks, rules: s.rules,
