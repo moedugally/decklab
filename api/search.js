@@ -531,16 +531,10 @@ function applyStructuredFilters(cards, criteria) {
       const cost = raw !== null && raw !== undefined
         ? parseInt(raw, 10)
         : (Array.isArray(a.cost) ? a.cost.length : 0);
-      // Damage check: for exact queries (min===max), attack qualifies if its base OR max equals
-      // the target — covers "50+" cards that output exactly 50 (base) or exactly 100 (max).
-      // For range queries, use overlap: max possible >= floor AND base <= ceiling.
-      const exactDmgQuery = hasDmgMin && hasDmgMax && minDamage === maxDamage;
-      if (exactDmgQuery) {
-        if (dmgRange.min !== minDamage && dmgRange.max !== minDamage) return false;
-      } else {
-        if (hasDmgMin && dmgRange.max < minDamage) return false;
-        if (hasDmgMax && dmgRange.min > maxDamage) return false;
-      }
+      // minDamage: card must be CAPABLE of dealing at least this much (use max possible)
+      if (!hasDmgMin  || dmgRange.max >= minDamage)  {} else return false;
+      // maxDamage: card's BASE damage must not exceed the ceiling (allows "50+" to satisfy "exactly 50")
+      if (!hasDmgMax  || dmgRange.min <= maxDamage)  {} else return false;
       if (!hasCostMax || cost <= maxEnergyCost) {} else return false;
       if (!hasCostMin || cost >= minEnergyCost) {} else return false;
       // Check attack cost energy types
@@ -1045,15 +1039,9 @@ async function vectorSearch(query, typeFilter, topK = 100) {
     headers: { Authorization: `Bearer ${VECTOR_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ data: query, topK, includeMetadata: true })
   });
-  if (!r.ok) {
-    const errText = await r.text().catch(() => '');
-    console.error(`[vectorSearch] HTTP ${r.status}: ${errText}`);
-    return [];
-  }
+  if (!r.ok) return [];
   const data = await r.json();
   let results = (data.result || []).map(r => r.metadata).filter(Boolean);
-  const sampleMark = data.result?.[0]?.metadata?.regulationMark ?? 'NO_RESULT';
-  console.log(`[vectorSearch] raw=${results.length} marks=${[...new Set(results.map(r=>r.regulationMark))].join(',')} sample=${sampleMark}`);
   if (typeFilter) results = results.filter(c => (c.types || []).includes(typeFilter));
   return results.filter(c => STANDARD_MARKS.includes(c.regulationMark));
 }
