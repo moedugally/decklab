@@ -144,7 +144,7 @@ Return this exact JSON shape:
     "minDamage": <minimum damage number for any single attack, or null>,
     "maxDamage": <maximum damage number for any single attack — only set when user says "exactly X damage", else null>,
     "minEnergyCost": <minimum energy cost — only set when user says "exactly X energy/colorless", else null>,
-    "maxEnergyCost": <maximum convertedEnergyCost for that attack, or null>,
+    "maxEnergyCost": <maximum energy cost for the qualifying attack. Set whenever user mentions a specific energy count ("for 1 energy", "costs 2 energy", "1 grass energy"), even without "exactly". "exactly X energy" sets BOTH min and max to X. null only if no energy count mentioned>,
     "maxRetreatCost": <max retreat cost count, or null>,
     "excludeNames": ["<names to EXCLUDE — always include named_card here for counter/named_pokemon queries>"],
     "requireSupertype": "<'pokemon'|'trainer'|'energy'|null>",
@@ -170,6 +170,7 @@ Return this exact JSON shape:
 
 Rules:
 - "exactly X damage" → set BOTH minDamage: X AND maxDamage: X (strict equality, not a threshold)
+- "for X energy" / "costs X energy" / "X energy attack" → set maxEnergyCost: X (the attack can cost AT MOST X energy). Do NOT set minEnergyCost unless "exactly" is also said
 - "exactly X energy" / "exactly X colorless" → set BOTH minEnergyCost: X AND maxEnergyCost: X
 - "low energy" → maxEnergyCost 1 or 2 MAX. Never above 2.
 - "cheap attacker" → minDamage: 120, maxEnergyCost: 2
@@ -244,6 +245,7 @@ Examples:
 - "exactly 100 damage for exactly 2 colorless" → minDamage: 100, maxDamage: 100, minEnergyCost: 2, maxEnergyCost: 2, requireColorlessAttacksOnly: true
 - "attackers that require only 1 water energy" → minEnergyCost: 1, maxEnergyCost: 1, requireAttackCostTypes: ["Water"] (Colorless cost slots also qualify since Water energy can pay them)
 - "attackers that require only 1 colorless energy" → minEnergyCost: 1, maxEnergyCost: 1, requireColorlessAttacksOnly: true (Water/Fire/etc. attacks do NOT qualify)
+- "exactly 170 damage for 1 dark energy" → minDamage: 170, maxDamage: 170, maxEnergyCost: 1, requireAttackCostTypes: ["Darkness"] (no minEnergyCost — "exactly" not said before "1")
 - "exactly 170 damage for exactly 1 dark energy" → minDamage: 170, maxDamage: 170, minEnergyCost: 1, maxEnergyCost: 1, requireAttackCostTypes: ["Darkness"]
 - "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
 - "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
@@ -531,10 +533,17 @@ function applyStructuredFilters(cards, criteria) {
       const cost = raw !== null && raw !== undefined
         ? parseInt(raw, 10)
         : (Array.isArray(a.cost) ? a.cost.length : 0);
-      // minDamage: card must be CAPABLE of dealing at least this much (use max possible)
-      if (!hasDmgMin  || dmgRange.max >= minDamage)  {} else return false;
-      // maxDamage: card's BASE damage must not exceed the ceiling (allows "50+" to satisfy "exactly 50")
-      if (!hasDmgMax  || dmgRange.min <= maxDamage)  {} else return false;
+      // For exact damage queries (minDamage===maxDamage), the attack must anchor at exactly that value:
+      // base===X (can always deal X) OR max===X (X is the peak). Prevents "60+" cards from matching
+      // "exactly 170" just because their range overlaps [170,170].
+      // For range queries, use overlap: max possible >= floor AND base <= ceiling.
+      const exactDmgQuery = hasDmgMin && hasDmgMax && minDamage === maxDamage;
+      if (exactDmgQuery) {
+        if (dmgRange.min !== minDamage && dmgRange.max !== minDamage) return false;
+      } else {
+        if (hasDmgMin && dmgRange.max < minDamage) return false;
+        if (hasDmgMax && dmgRange.min > maxDamage) return false;
+      }
       if (!hasCostMax || cost <= maxEnergyCost) {} else return false;
       if (!hasCostMin || cost >= minEnergyCost) {} else return false;
       // Check attack cost energy types
