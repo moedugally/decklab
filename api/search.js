@@ -402,22 +402,26 @@ function mergeRRF(resultSets, k = 60) {
 // damage: ""     text: "...does 50 damage to..."   → 50
 // damage: "40×"  → 40 (can't statically know multiplier, use base)
 // damage: "120"  → 120 (no suffix)
-function parseMaxDamage(attack) {
+// Returns { min: baseDamage, max: maxPossibleDamage } for range checks.
+// For fixed damage ("170") min===max. For variable ("50+") min=50, max=100 (if bonus found).
+function parseDamageRange(attack) {
   const raw  = (attack.damage || '').trim();
   const base = parseInt(raw.replace(/[^0-9]/g, '')) || 0;
-  if (!raw.includes('+') && raw !== '') return base;
+  if (!raw.includes('+') && raw !== '') return { min: base, max: base };
 
   const text = (attack.text || '').toLowerCase();
   const bonuses = [...text.matchAll(/(?:this attack does|does) (\d+) more damage/g)].map(m => parseInt(m[1]));
-  if (raw.includes('+') && bonuses.length) return base + Math.max(...bonuses);
+  if (raw.includes('+') && bonuses.length) return { min: base, max: base + Math.max(...bonuses) };
 
-  // Empty damage field — look for the primary damage value in the text
   if (raw === '') {
     const stated = [...text.matchAll(/this attack does (\d+) damage/g)].map(m => parseInt(m[1]));
-    if (stated.length) return Math.max(...stated);
+    if (stated.length) { const v = Math.max(...stated); return { min: v, max: v }; }
   }
-  return base;
+  return { min: base, max: base };
 }
+
+// Convenience: max possible damage (used by stat store and build-stats)
+function parseMaxDamage(attack) { return parseDamageRange(attack).max; }
 
 function applyStructuredFilters(cards, criteria) {
   if (!criteria) return cards;
@@ -522,13 +526,15 @@ function applyStructuredFilters(cards, criteria) {
     if (!attacks.length) return !hasDmgMin && !hasDmgMax;
 
     return attacks.some(a => {
-      const dmg  = parseMaxDamage(a);
+      const dmgRange = parseDamageRange(a);
       const raw  = a.convertedEnergyCost;
       const cost = raw !== null && raw !== undefined
         ? parseInt(raw, 10)
         : (Array.isArray(a.cost) ? a.cost.length : 0);
-      if (!hasDmgMin  || dmg  >= minDamage)  {} else return false;
-      if (!hasDmgMax  || dmg  <= maxDamage)  {} else return false;
+      // minDamage: card must be CAPABLE of dealing at least this much (use max possible)
+      if (!hasDmgMin  || dmgRange.max >= minDamage)  {} else return false;
+      // maxDamage: card's BASE damage must not exceed the ceiling (allows "50+" to satisfy "exactly 50")
+      if (!hasDmgMax  || dmgRange.min <= maxDamage)  {} else return false;
       if (!hasCostMax || cost <= maxEnergyCost) {} else return false;
       if (!hasCostMin || cost >= minEnergyCost) {} else return false;
       // Check attack cost energy types
