@@ -142,6 +142,8 @@ Return this exact JSON shape:
   "constraints": ["<each distinct constraint for multi_constraint, else []>"],
   "criteria": {
     "minDamage": <minimum damage number for any single attack, or null>,
+    "maxDamage": <maximum damage number for any single attack — only set when user says "exactly X damage", else null>,
+    "minEnergyCost": <minimum energy cost — only set when user says "exactly X energy/colorless", else null>,
     "maxEnergyCost": <maximum convertedEnergyCost for that attack, or null>,
     "maxRetreatCost": <max retreat cost count, or null>,
     "excludeNames": ["<names to EXCLUDE — always include named_card here for counter/named_pokemon queries>"],
@@ -166,6 +168,8 @@ Return this exact JSON shape:
 }
 
 Rules:
+- "exactly X damage" → set BOTH minDamage: X AND maxDamage: X (strict equality, not a threshold)
+- "exactly X energy" / "exactly X colorless" → set BOTH minEnergyCost: X AND maxEnergyCost: X
 - "low energy" → maxEnergyCost 1 or 2 MAX. Never above 2.
 - "cheap attacker" → minDamage: 120, maxEnergyCost: 2
 - "1 energy attacker" → minDamage: 100, maxEnergyCost: 1
@@ -226,6 +230,7 @@ Examples:
 - "heal crustle" → type: named_pokemon, excludeNames: ["Crustle"], rewritten_query: "trainer cards and abilities that remove damage counters or restore HP."
 - "heal multiple pokemon at once" / "heal your whole board" / "heal all your pokemon" → requireSupertype: null (healing can come from Pokémon abilities AND trainer cards — do NOT restrict to trainer), cardTextContains: ["each of your Pokémon", "all of your Pokémon", "each Pokémon in play", "remove all damage", "heal all"]
 - "heal one pokemon" / "restore HP" / "remove damage counters" → requireSupertype: null (same — do NOT assume trainer), cardTextContains: ["remove", "heal", "restore HP"]
+- "exactly 100 damage for exactly 2 colorless" → minDamage: 100, maxDamage: 100, minEnergyCost: 2, maxEnergyCost: 2, requireColorlessAttacksOnly: true
 - "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
 - "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
 - "search deck for basic pokemon" / "find basic pokemon from deck" / "get basic from deck" → requireSupertype: null (Pokémon attacks like Call for Family and Abilities like Fan Rotom's also search the deck for Basics — do NOT restrict to trainer), cardTextContains: ["Basic Pokémon and put it onto your Bench", "Basic Pokémon and put them onto your Bench"]
@@ -303,6 +308,8 @@ async function classifyQuery(query, archetypes) {
     if (c.maxHP == null)               c.maxHP                      = null;
     if (c.minAttacks == null)          c.minAttacks                 = null;
     if (c.maxAttacks == null)          c.maxAttacks                 = null;
+    if (c.maxDamage == null)           c.maxDamage                  = null;
+    if (c.minEnergyCost == null)       c.minEnergyCost              = null;
     if (!parsed.alternative_queries)   parsed.alternative_queries   = [];
 
     if (archetypeMatch && (parsed.type === 'archetype' || parsed.type === 'counter')) {
@@ -400,7 +407,7 @@ function parseMaxDamage(attack) {
 function applyStructuredFilters(cards, criteria) {
   if (!criteria) return cards;
   const {
-    minDamage, maxEnergyCost, maxRetreatCost,
+    minDamage, maxDamage, minEnergyCost, maxEnergyCost, maxRetreatCost,
     excludeNames, requireSupertype, requireTypes,
     requireColorlessAttacksOnly, requireAbility, requireStage,
     excludePokemonRule, requirePokemonRule, cardTextContains,
@@ -489,13 +496,15 @@ function applyStructuredFilters(cards, criteria) {
       if (!needles.some(n => combined.includes(norm2(n)))) return false;
     }
 
-    // Attack damage + energy cost — card passes if ANY attack satisfies BOTH
-    const hasDmg  = minDamage !== null && minDamage !== undefined;
-    const hasCost = maxEnergyCost !== null && maxEnergyCost !== undefined;
-    if (!hasDmg && !hasCost) return true;
+    // Attack damage + energy cost — card passes if ANY attack satisfies ALL active constraints
+    const hasDmgMin  = minDamage     !== null && minDamage     !== undefined;
+    const hasDmgMax  = maxDamage     !== null && maxDamage     !== undefined;
+    const hasCostMax = maxEnergyCost !== null && maxEnergyCost !== undefined;
+    const hasCostMin = minEnergyCost !== null && minEnergyCost !== undefined;
+    if (!hasDmgMin && !hasDmgMax && !hasCostMax && !hasCostMin) return true;
 
     const attacks = card.attacks || [];
-    if (!attacks.length) return !hasDmg;
+    if (!attacks.length) return !hasDmgMin && !hasDmgMax;
 
     return attacks.some(a => {
       const dmg  = parseMaxDamage(a);
@@ -503,7 +512,10 @@ function applyStructuredFilters(cards, criteria) {
       const cost = raw !== null && raw !== undefined
         ? parseInt(raw, 10)
         : (Array.isArray(a.cost) ? a.cost.length : 0);
-      return (!hasDmg || dmg >= minDamage) && (!hasCost || cost <= maxEnergyCost);
+      return (!hasDmgMin  || dmg  >= minDamage)
+          && (!hasDmgMax  || dmg  <= maxDamage)
+          && (!hasCostMax || cost <= maxEnergyCost)
+          && (!hasCostMin || cost >= minEnergyCost);
     });
   });
 }
@@ -564,7 +576,9 @@ async function rerank(originalQuery, intent, cards) {
     c.minAttacks                && `HARD RULE: Card must have at least ${c.minAttacks} attacks.`,
     c.maxAttacks !== null && c.maxAttacks !== undefined && `HARD RULE: Card must have at most ${c.maxAttacks} attack(s).`,
     c.minDamage                 && `HARD RULE: Card must have at least one attack dealing ${c.minDamage}+ damage.`,
+    c.maxDamage !== null && c.maxDamage !== undefined && `HARD RULE: The qualifying attack must deal ${c.maxDamage} damage or fewer (exactly ${c.maxDamage} if minDamage matches).`,
     c.maxEnergyCost !== null && c.maxEnergyCost !== undefined && `HARD RULE: The qualifying attack must cost ${c.maxEnergyCost} energy or fewer.`,
+    c.minEnergyCost !== null && c.minEnergyCost !== undefined && `HARD RULE: The qualifying attack must cost ${c.minEnergyCost} energy or more.`,
   ].filter(Boolean).join('\n');
 
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
@@ -710,7 +724,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v46:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v47:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
