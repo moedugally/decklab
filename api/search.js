@@ -922,7 +922,7 @@ export default async function handler(req, res) {
             hp: String(s.hp), weaknesses: s.weaknesses, retreatCost: s.retreatCost,
             legalities: s.legalities,
           }));
-        closePool = [...deduped, ...extra];
+        closePool = dedupeByBaseRarity([...deduped, ...extra]);
       }
       // Tier 1: relax numeric only
       const close1 = applyStructuredFilters(closePool, {
