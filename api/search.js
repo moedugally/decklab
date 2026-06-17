@@ -603,6 +603,7 @@ async function rerank(originalQuery, intent, cards) {
     c.maxDamage !== null && c.maxDamage !== undefined && `HARD RULE: The qualifying attack must deal ${c.maxDamage} damage or fewer (exactly ${c.maxDamage} if minDamage matches).`,
     c.maxEnergyCost !== null && c.maxEnergyCost !== undefined && `HARD RULE: The qualifying attack must cost ${c.maxEnergyCost} energy or fewer.`,
     c.minEnergyCost !== null && c.minEnergyCost !== undefined && `HARD RULE: The qualifying attack must cost ${c.minEnergyCost} energy or more.`,
+    c.requireAttackCostTypes?.length && `HARD RULE: Every non-Colorless energy in the qualifying attack's cost must be one of: ${c.requireAttackCostTypes.join(', ')}. Colorless cost slots are fine. Reject any attack whose cost includes typed energy not in this list (e.g. a Grass-cost attack does not qualify when only Darkness energy is available).`,
   ].filter(Boolean).join('\n');
 
   const prompt = `You are a competitive Pokémon TCG expert. A player searched: "${originalQuery}"
@@ -876,7 +877,10 @@ export default async function handler(req, res) {
       if (f1.length > 0) return f1;
       // Relax only numeric constraints — never drop cardTextContains or structural filters,
       // otherwise we'd show cards that don't match the mechanic the user asked for.
-      const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
+      // Preserve minDamage when user said "exactly X damage" (minDamage===maxDamage) — relaxing it
+      // lets 0-damage utility moves with Colorless cost slip through requireAttackCostTypes checks.
+      const exactDmg = intent.criteria.minDamage != null && intent.criteria.minDamage === intent.criteria.maxDamage;
+      const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: exactDmg ? intent.criteria.minDamage : null, maxEnergyCost: null, maxRetreatCost: null });
       if (f2.length > 0) return f2;
       return [];
     })();
