@@ -464,14 +464,17 @@ async function runSearch(){
 
   function onDone(ev){
     streamDone=true;
+    const isClose=ev&&ev._closeMatches;
     if(count===0){
       document.getElementById('results-col').innerHTML=`<div class="empty-app"><i class="ti ti-mood-empty"></i><strong>No matches found</strong><p>Try rephrasing your search.</p></div>`;
       appStatus('');
     } else {
-      // Sort all card tiles alphabetically by card name
-      const tiles=[...grid.querySelectorAll('.ct')];
-      tiles.sort((a,b)=>(a.getAttribute('aria-label')||'').localeCompare(b.getAttribute('aria-label')||''));
-      tiles.forEach(t=>grid.insertBefore(t,missTile));
+      // Sort tiles alphabetically (skip for close matches — sorted by proximity server-side)
+      if(!isClose){
+        const tiles=[...grid.querySelectorAll('.ct')];
+        tiles.sort((a,b)=>(a.getAttribute('aria-label')||'').localeCompare(b.getAttribute('aria-label')||''));
+        tiles.forEach(t=>grid.insertBefore(t,missTile));
+      }
       // Show notice if exact filters couldn't be satisfied
       if(ev&&ev._debug&&ev._debug.fallbackFired){
         const notice=document.createElement('p');
@@ -479,13 +482,13 @@ async function runSearch(){
         notice.textContent='Exact matches not found — showing closest results.';
         document.getElementById('results-col').insertBefore(notice,grid);
       }
-      // Show banner when results are close matches (no exact match existed)
-      if(ev&&ev._closeMatches){
-        const banner=document.createElement('div');
-        banner.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 14px;margin-bottom:12px;background:var(--surface2,#1e1e2e);border:1px solid var(--border,#333);border-radius:8px;font-size:12px;color:var(--text3);font-family:Inter,sans-serif';
-        banner.innerHTML=`<i class="ti ti-adjustments-horizontal" style="font-size:15px;flex-shrink:0"></i><span><strong style="color:var(--text2);font-weight:500">No exact matches</strong> — these are the closest alternatives we found.</span>`;
-        document.getElementById('results-col').insertBefore(banner,grid);
-        appStatus(`<span class="cnt">${count} suggestion${count===1?'':'s'}</span>`);
+      // Show notice when results are close matches (no exact match existed)
+      if(isClose){
+        const notice=document.createElement('div');
+        notice.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 2px 14px;font-size:12px;color:var(--text3);font-family:Inter,sans-serif';
+        notice.innerHTML=`<i class="ti ti-info-circle" style="font-size:14px;flex-shrink:0"></i><span>No exact matches — maybe these?</span>`;
+        document.getElementById('results-col').insertBefore(notice,grid);
+        appStatus(`<span style="color:var(--text3)">no exact matches</span>`);
       }
     }
     btn.disabled=false;

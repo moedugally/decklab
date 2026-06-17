@@ -902,27 +902,57 @@ export default async function handler(req, res) {
 
     if (!hardFiltered.length) {
       // ── close match suggestions (tiered relaxation) ──
+      // Expand candidate pool with stat store cards matching basic type/supertype
+      // so suggestions aren't limited to what the vector search happened to return.
+      const closeStatStore = await getStatStore();
+      let closePool = deduped;
+      if (closeStatStore && (intent.criteria.requireTypes?.length || intent.criteria.requireSupertype)) {
+        const basicMatches = statStoreFilter(closeStatStore, {
+          requireSupertype: intent.criteria.requireSupertype,
+          requireTypes: intent.criteria.requireTypes,
+        });
+        const existingIds = new Set(deduped.map(c => c.id));
+        const extra = basicMatches
+          .filter(s => !existingIds.has(s.id))
+          .map(s => ({
+            id: s.id, name: s.name, supertype: s.supertype, subtypes: s.subtypes,
+            types: s.types, abilities: s.abilities, attacks: s.attacks, rules: s.rules,
+            setName: s.setName, rarity: '', regulationMark: s.regulationMark,
+            imageSmall: s.imageSmall, imageLarge: s.imageLarge, number: s.number,
+            hp: String(s.hp), weaknesses: s.weaknesses, retreatCost: s.retreatCost,
+            legalities: s.legalities,
+          }));
+        closePool = [...deduped, ...extra];
+      }
       // Tier 1: relax numeric only
-      const close1 = applyStructuredFilters(deduped, {
+      const close1 = applyStructuredFilters(closePool, {
         ...intent.criteria,
         minDamage: null, maxDamage: null,
         minEnergyCost: null, maxEnergyCost: null,
         maxRetreatCost: null,
       });
-      // Tier 2: also relax text search, keep type/supertype/structural flags
-      const close2 = close1.length ? close1 : applyStructuredFilters(deduped, {
+      // Tier 2: also relax structural flags (requirePokemonRule, stage, etc.) — keeps text search
+      const close2 = close1.length ? close1 : applyStructuredFilters(closePool, {
         ...intent.criteria,
         minDamage: null, maxDamage: null,
         minEnergyCost: null, maxEnergyCost: null,
         maxRetreatCost: null,
-        cardTextContains: null,
+        requirePokemonRule: false, excludePokemonRule: false,
+        requireStage: null, requireSubtype: null,
+        requireWeakness: null, requireResistance: null,
       });
-      // Tier 3: keep only supertype + types (most permissive)
-      const close3 = close2.length ? close2 : applyStructuredFilters(deduped, {
+      // Tier 3: relax text search too, keep type/supertype
+      const close3 = close2.length ? close2 : applyStructuredFilters(closePool, {
+        requireSupertype: intent.criteria.requireSupertype,
+        requireTypes: intent.criteria.requireTypes,
+        cardTextContains: intent.criteria.cardTextContains,
+      });
+      // Tier 4: keep only supertype + types (most permissive)
+      const close4 = close3.length ? close3 : applyStructuredFilters(closePool, {
         requireSupertype: intent.criteria.requireSupertype,
         requireTypes: intent.criteria.requireTypes,
       });
-      const closeMatches = close3;
+      const closeMatches = close4;
       if (closeMatches.length > 0) {
         const targetDmg = intent.criteria.minDamage ?? intent.criteria.maxDamage ?? null;
         const sorted = [...closeMatches]
