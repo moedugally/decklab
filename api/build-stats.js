@@ -1,14 +1,10 @@
-// Builds the numeric stat store in Redis from cards already indexed in Upstash Vector.
+// Builds the numeric stat store in Redis by fetching all Standard-legal cards
+// directly from the Pokémon TCG API. Cheaper than scrolling Upstash Vector
+// (no vector read quota consumed) and always includes the latest sets.
 // POST /api/build-stats  (protected by x-build-secret header)
-//
-// Scrolls through the vector index in pages, extracts numeric stats from each card's
-// metadata, and stores the full list in Redis. Much faster than re-fetching from the
-// Pokémon TCG API — all data is already in Upstash Vector from enrichment.
 
 const KV_URL      = process.env.KV_REST_API_URL;
 const KV_TOKEN    = process.env.KV_REST_API_TOKEN;
-const VECTOR_URL  = process.env.UPSTASH_VECTOR_REST_URL;
-const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
 const STANDARD_MARKS = ['H', 'I', 'J'];
 const STATS_KEY = 'statsindex';
 const STATS_TTL = 60 * 60 * 24 * 30; // 30 days
@@ -27,11 +23,11 @@ function parseMaxDamage(atk) {
   return base;
 }
 
-function extractStats(meta) {
+function extractStats(c) {
   let maxDamage = 0;
   let minEnergyForBestAtk = 99;
 
-  for (const atk of (meta.attacks || [])) {
+  for (const atk of (c.attacks || [])) {
     const dmg  = parseMaxDamage(atk);
     const cost = atk.convertedEnergyCost !== null && atk.convertedEnergyCost !== undefined
       ? parseInt(atk.convertedEnergyCost, 10)
@@ -44,26 +40,26 @@ function extractStats(meta) {
   }
 
   return {
-    id:                  meta.id,
-    name:                meta.name,
-    supertype:           meta.supertype || '',
-    subtypes:            meta.subtypes || [],
-    types:               meta.types || [],
-    setName:             meta.setName || '',
-    number:              meta.number || '',
-    imageSmall:          meta.imageSmall || '',
-    imageLarge:          meta.imageLarge || '',
-    regulationMark:      meta.regulationMark || '',
-    hp:                  parseInt(meta.hp || '0', 10) || 0,
-    retreatCount:        (meta.retreatCost || []).length,
+    id:                  c.id,
+    name:                c.name,
+    supertype:           c.supertype || '',
+    subtypes:            c.subtypes || [],
+    types:               c.types || [],
+    setName:             c.set?.name || '',
+    number:              c.number || '',
+    imageSmall:          c.images?.small || '',
+    imageLarge:          c.images?.large || '',
+    regulationMark:      c.regulationMark || '',
+    hp:                  parseInt(c.hp || '0', 10) || 0,
+    retreatCount:        (c.retreatCost || []).length,
     maxDamage,
     minEnergyForBestAtk: maxDamage > 0 ? minEnergyForBestAtk : 99,
-    abilities:   meta.abilities || [],
-    attacks:     meta.attacks || [],
-    rules:       meta.rules || [],
-    weaknesses:  meta.weaknesses || [],
-    retreatCost: meta.retreatCost || [],
-    legalities:  meta.legalities || {},
+    abilities:   c.abilities || [],
+    attacks:     c.attacks || [],
+    rules:       c.rules || [],
+    weaknesses:  c.weaknesses || [],
+    retreatCost: c.retreatCost || [],
+    legalities:  c.legalities || {},
   };
 }
 
@@ -75,35 +71,31 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   if (!KV_URL || !KV_TOKEN) return res.status(500).json({ error: 'Redis not configured' });
-  if (!VECTOR_URL || !VECTOR_TOKEN) return res.status(500).json({ error: 'Vector not configured' });
 
   try {
     const allStats = [];
-    let cursor = 0;
-    const PAGE = 1000;
+    const markFilter = STANDARD_MARKS.map(m => `regulationMark:${m}`).join(' OR ');
 
-    // Scroll through all vectors and collect metadata
-    do {
-      const r = await fetch(`${VECTOR_URL}/range`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${VECTOR_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cursor, limit: PAGE, includeMetadata: true, includeVectors: false })
-      });
+    // Fetch all Standard cards from TCG API, paginated
+    let page = 1;
+    const pageSize = 250;
+    while (true) {
+      const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`(${markFilter})`)}&pageSize=${pageSize}&page=${page}&select=id,name,supertype,subtypes,types,hp,attacks,abilities,rules,weaknesses,retreatCost,set,number,images,regulationMark,legalities`;
+      const r = await fetch(url);
       if (!r.ok) {
         const text = await r.text();
-        return res.status(500).json({ error: `Vector range failed: ${text}` });
+        return res.status(500).json({ error: `TCG API failed page ${page}: ${text}` });
       }
       const data = await r.json();
-      const vectors = data.result?.vectors || [];
+      const cards = (data.data || []).filter(c => STANDARD_MARKS.includes(c.regulationMark));
 
-      for (const v of vectors) {
-        const meta = v.metadata;
-        if (!meta || !STANDARD_MARKS.includes(meta.regulationMark)) continue;
-        allStats.push(extractStats(meta));
+      for (const c of cards) {
+        allStats.push(extractStats(c));
       }
 
-      cursor = data.result?.nextCursor ?? 0;
-    } while (cursor !== 0);
+      if (!data.data?.length || data.data.length < pageSize) break;
+      page++;
+    }
 
     // Store in Redis
     await fetch(`${KV_URL}/pipeline`, {
