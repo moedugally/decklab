@@ -764,7 +764,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v52:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v53:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
@@ -854,7 +854,7 @@ export default async function handler(req, res) {
     // ── stat store augmentation for numeric constraint queries ──
     // Guarantees cards that qualify by exact stats are never missed due to semantic ranking
     let cards = vectorCards;
-    const hasNumericConstraints = intent.type === 'multi_constraint' &&
+    const hasNumericConstraints =
       (intent.criteria?.minDamage || intent.criteria?.maxEnergyCost);
 
     if (hasNumericConstraints) {
