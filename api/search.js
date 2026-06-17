@@ -1052,7 +1052,8 @@ async function vectorSearch(query, typeFilter, topK = 100) {
   }
   const data = await r.json();
   let results = (data.result || []).map(r => r.metadata).filter(Boolean);
-  console.log(`[vectorSearch] raw=${results.length} marks=${[...new Set(results.map(r=>r.regulationMark))].join(',')}`);
+  const sampleMark = data.result?.[0]?.metadata?.regulationMark ?? 'NO_RESULT';
+  console.log(`[vectorSearch] raw=${results.length} marks=${[...new Set(results.map(r=>r.regulationMark))].join(',')} sample=${sampleMark}`);
   if (typeFilter) results = results.filter(c => (c.types || []).includes(typeFilter));
   return results.filter(c => STANDARD_MARKS.includes(c.regulationMark));
 }
