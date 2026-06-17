@@ -901,6 +901,31 @@ export default async function handler(req, res) {
     })();
 
     if (!hardFiltered.length) {
+      // ── close match suggestions ──
+      // Relax all numeric constraints, keep structural ones (type, supertype, cost types)
+      const closeMatches = applyStructuredFilters(deduped, {
+        ...intent.criteria,
+        minDamage: null, maxDamage: null,
+        minEnergyCost: null, maxEnergyCost: null,
+        maxRetreatCost: null,
+      });
+      if (closeMatches.length > 0) {
+        const targetDmg = intent.criteria.minDamage ?? intent.criteria.maxDamage ?? null;
+        const sorted = [...closeMatches]
+          .sort((a, b) => {
+            const dmgA = Math.max(0, ...(a.attacks || []).map(parseMaxDamage));
+            const dmgB = Math.max(0, ...(b.attacks || []).map(parseMaxDamage));
+            return targetDmg !== null
+              ? Math.abs(dmgA - targetDmg) - Math.abs(dmgB - targetDmg)
+              : dmgB - dmgA;
+          })
+          .slice(0, 10);
+        const results = sorted.map(c => ({ id: c.id, name: c.name, relevance: 'low', card: normalizeCard(c) }));
+        for (const m of results) write(m);
+        write({ _reorder: results.map(r => r.id) });
+        write({ _done: true, _count: results.length, _closeMatches: true, _debug: { intent: intent.type, criteria: intent.criteria, candidateCount: vectorCards.length, afterFilter: 0, fallbackFired: false } });
+        return res.end();
+      }
       write({ _done: true, _count: 0, _debug: { intent: intent.type, criteria: intent.criteria, candidateCount: vectorCards.length, afterFilter: 0, fallbackFired: false } });
       return res.end();
     }

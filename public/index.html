@@ -4,6 +4,16 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Decklab — Pokémon TCG</title>
+<meta name="description" content="Card search engine that actually speaks Pokémon TCG">
+<meta property="og:title" content="Decklab — Pokémon TCG">
+<meta property="og:description" content="Card search engine that actually speaks Pokémon TCG">
+<meta property="og:image" content="https://www.decklab.gg/og-image.png">
+<meta property="og:url" content="https://www.decklab.gg/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Decklab — Pokémon TCG">
+<meta name="twitter:description" content="Card search engine that actually speaks Pokémon TCG">
+<meta name="twitter:image" content="https://www.decklab.gg/og-image.png">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
@@ -259,8 +269,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
   </div>
 
   <div class="features">
-    <div class="feat"><div class="feat-icon"><i class="ti ti-brain"></i></div><div class="feat-title">Search by function, not name</div><div class="feat-body">Describe what your deck needs in plain language. Decklab reads every ability and attack effect to find cards that actually do the job.</div></div>
-    <div class="feat"><div class="feat-icon"><i class="ti ti-shield-check"></i></div><div class="feat-title">Format-aware results</div><div class="feat-body">Filter by Standard, Expanded, or unlimited. Every result is checked against current legality so you're never building with an illegal card.</div></div>
+    <div class="feat"><div class="feat-icon"><i class="ti ti-brain"></i></div><div class="feat-title">Search by function, not name</div><div class="feat-body">Describe what your deck needs in plain language. Decklab searches through every card to find the ones that actually get the job done.</div></div>
+    <div class="feat"><div class="feat-icon"><i class="ti ti-shield-check"></i></div><div class="feat-title">Format-aware results</div><div class="feat-body">Every result is checked against current legality so you're never building with an illegal card.</div></div>
     <div class="feat"><div class="feat-icon"><i class="ti ti-cards"></i></div><div class="feat-title">Full card detail on demand</div><div class="feat-body">Click any result for the full card — HP, attacks, abilities, weakness, retreat cost, and exactly why it matched your search.</div></div>
   </div>
   <div class="footer">
@@ -468,6 +478,14 @@ async function runSearch(){
         notice.style.cssText='text-align:center;font-size:12px;color:var(--text3);margin:8px 0 0;font-family:Inter,sans-serif';
         notice.textContent='Exact matches not found — showing closest results.';
         document.getElementById('results-col').insertBefore(notice,grid);
+      }
+      // Show banner when results are close matches (no exact match existed)
+      if(ev&&ev._closeMatches){
+        const banner=document.createElement('div');
+        banner.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 14px;margin-bottom:12px;background:var(--surface2,#1e1e2e);border:1px solid var(--border,#333);border-radius:8px;font-size:12px;color:var(--text3);font-family:Inter,sans-serif';
+        banner.innerHTML=`<i class="ti ti-adjustments-horizontal" style="font-size:15px;flex-shrink:0"></i><span><strong style="color:var(--text2);font-weight:500">No exact matches</strong> — these are the closest alternatives we found.</span>`;
+        document.getElementById('results-col').insertBefore(banner,grid);
+        appStatus(`<span class="cnt">${count} suggestion${count===1?'':'s'}</span>`);
       }
     }
     btn.disabled=false;
@@ -773,5 +791,6 @@ document.addEventListener('click',e=>{
     dd.classList.remove('open');
   }
 });</script>
+<script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
