@@ -149,7 +149,8 @@ Return this exact JSON shape:
     "excludeNames": ["<names to EXCLUDE — always include named_card here for counter/named_pokemon queries>"],
     "requireSupertype": "<'pokemon'|'trainer'|'energy'|null>",
     "requireTypes": ["<energy types like 'Fire','Water' if specified, else []>"],
-    "requireColorlessAttacksOnly": <true if ALL attacks must use only Colorless energy (no typed energy at all), else false>,
+    "requireColorlessAttacksOnly": <true if ALL attacks must use only Colorless energy (no typed energy at all) — use for "splashable", "any deck", "colorless only", else false>,
+    "requireAttackCostTypes": ["<energy types the user has available, e.g. ['Water'] or ['Water','Lightning']. Set when user specifies a non-colorless energy type in attack cost context, e.g. 'costs 1 water energy', 'requires fire energy', 'for my water deck'. Attacks qualify if every non-Colorless cost slot is one of these types. Leave [] if not specified or if requireColorlessAttacksOnly is true.>"],
     "requireAbility": <true if card must have at least one Ability, else false>,
     "requireStage": "<'Basic'|'Stage 1'|'Stage 2'|'VMAX'|'VSTAR'|null — only set if stage is explicitly mentioned>",
     "excludePokemonRule": <true if query says '1 prize', 'non-ex', 'non-V', 'single prize' — excludes ex/V/VMAX/VSTAR, else false>,
@@ -174,7 +175,17 @@ Rules:
 - "cheap attacker" → minDamage: 120, maxEnergyCost: 2
 - "1 energy attacker" → minDamage: 100, maxEnergyCost: 1
 - "heal <pokemon>" → excludeNames: ["<pokemon>"], rewritten_query describes healing cards NOT the pokemon
-- "only colorless attacks" / "colorless cost" / "splashable attacker" → requireColorlessAttacksOnly: true
+- "only colorless attacks" / "colorless cost" / "splashable attacker" / "fits any deck" → requireColorlessAttacksOnly: true, requireAttackCostTypes: []
+- "requires 1 water energy" / "costs water energy" / "for my water deck" / "attacks that need water" → requireAttackCostTypes: ["Water"] (do NOT set requireColorlessAttacksOnly — colorless cost slots are implicitly also allowed)
+- "requires fire energy" → requireAttackCostTypes: ["Fire"]
+- "requires lightning energy" / "costs electric energy" → requireAttackCostTypes: ["Lightning"]
+- "requires darkness/dark energy" → requireAttackCostTypes: ["Darkness"]
+- "requires fighting energy" → requireAttackCostTypes: ["Fighting"]
+- "requires grass energy" → requireAttackCostTypes: ["Grass"]
+- "requires psychic energy" → requireAttackCostTypes: ["Psychic"]
+- "requires metal energy" → requireAttackCostTypes: ["Metal"]
+- "requires water or lightning energy" / "for my water/lightning deck" → requireAttackCostTypes: ["Water", "Lightning"]
+- CRITICAL DISTINCTION: "1 water energy" in attack cost context → requireAttackCostTypes: ["Water"] (Water OR Colorless slots both qualify). "1 colorless energy" → requireColorlessAttacksOnly: true (ONLY Colorless slots qualify — Water energy cannot pay for a Colorless cost slot from the player's perspective here).
 - "1 prize" / "non-ex" / "non-V" / "single prize" → excludePokemonRule: true
 - "move damage" / "transfer damage counters" → cardTextContains: "move damage counters"
 - "discard energy from opponent" → cardTextContains: "discard an Energy"
@@ -231,6 +242,9 @@ Examples:
 - "heal multiple pokemon at once" / "heal your whole board" / "heal all your pokemon" → requireSupertype: null (healing can come from Pokémon abilities AND trainer cards — do NOT restrict to trainer), cardTextContains: ["each of your Pokémon", "all of your Pokémon", "each Pokémon in play", "remove all damage", "heal all"]
 - "heal one pokemon" / "restore HP" / "remove damage counters" → requireSupertype: null (same — do NOT assume trainer), cardTextContains: ["remove", "heal", "restore HP"]
 - "exactly 100 damage for exactly 2 colorless" → minDamage: 100, maxDamage: 100, minEnergyCost: 2, maxEnergyCost: 2, requireColorlessAttacksOnly: true
+- "attackers that require only 1 water energy" → minEnergyCost: 1, maxEnergyCost: 1, requireAttackCostTypes: ["Water"] (Colorless cost slots also qualify since Water energy can pay them)
+- "attackers that require only 1 colorless energy" → minEnergyCost: 1, maxEnergyCost: 1, requireColorlessAttacksOnly: true (Water/Fire/etc. attacks do NOT qualify)
+- "exactly 170 damage for exactly 1 dark energy" → minDamage: 170, maxDamage: 170, minEnergyCost: 1, maxEnergyCost: 1, requireAttackCostTypes: ["Darkness"]
 - "low energy high damage attacker" → type: multi_constraint, minDamage: 130, maxEnergyCost: 2, rewritten_query: "pokemon with high damage output for minimal energy cost"
 - "grass pokemon with only colorless attacks" → requireSupertype: "pokemon", requireTypes: ["Grass"], requireColorlessAttacksOnly: true, rewritten_query: "Grass type pokemon whose attacks only require Colorless energy, no typed energy cost, splashable attacker"
 - "search deck for basic pokemon" / "find basic pokemon from deck" / "get basic from deck" → requireSupertype: null (Pokémon attacks like Call for Family and Abilities like Fan Rotom's also search the deck for Basics — do NOT restrict to trainer), cardTextContains: ["Basic Pokémon and put it onto your Bench", "Basic Pokémon and put them onto your Bench"]
@@ -296,6 +310,7 @@ async function classifyQuery(query, archetypes) {
     if (!c.requireTypes)               c.requireTypes               = [];
     if (c.requireSupertype == null)    c.requireSupertype           = null;
     if (c.requireColorlessAttacksOnly == null) c.requireColorlessAttacksOnly = false;
+    if (!c.requireAttackCostTypes)         c.requireAttackCostTypes         = [];
     if (c.requireAbility == null)      c.requireAbility             = false;
     if (c.requireStage == null)        c.requireStage               = null;
     if (c.excludePokemonRule == null)  c.excludePokemonRule         = false;
@@ -409,7 +424,7 @@ function applyStructuredFilters(cards, criteria) {
   const {
     minDamage, maxDamage, minEnergyCost, maxEnergyCost, maxRetreatCost,
     excludeNames, requireSupertype, requireTypes,
-    requireColorlessAttacksOnly, requireAbility, requireStage,
+    requireColorlessAttacksOnly, requireAttackCostTypes, requireAbility, requireStage,
     excludePokemonRule, requirePokemonRule, cardTextContains,
     requireWeakness, requireResistance, requireSubtype,
     minHP, maxHP, minAttacks, maxAttacks,
@@ -512,10 +527,19 @@ function applyStructuredFilters(cards, criteria) {
       const cost = raw !== null && raw !== undefined
         ? parseInt(raw, 10)
         : (Array.isArray(a.cost) ? a.cost.length : 0);
-      return (!hasDmgMin  || dmg  >= minDamage)
-          && (!hasDmgMax  || dmg  <= maxDamage)
-          && (!hasCostMax || cost <= maxEnergyCost)
-          && (!hasCostMin || cost >= minEnergyCost);
+      if (!hasDmgMin  || dmg  >= minDamage)  {} else return false;
+      if (!hasDmgMax  || dmg  <= maxDamage)  {} else return false;
+      if (!hasCostMax || cost <= maxEnergyCost) {} else return false;
+      if (!hasCostMin || cost >= minEnergyCost) {} else return false;
+      // Check attack cost energy types
+      const costArr = a.cost || [];
+      if (requireColorlessAttacksOnly && costArr.some(e => e !== 'Colorless')) return false;
+      if (requireAttackCostTypes?.length) {
+        // Every non-Colorless slot must be a type the user has available.
+        // Colorless slots can always be paid with any energy.
+        if (!costArr.every(e => e === 'Colorless' || requireAttackCostTypes.includes(e))) return false;
+      }
+      return true;
     });
   });
 }
@@ -724,7 +748,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v47:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v48:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
