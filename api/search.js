@@ -1039,7 +1039,11 @@ async function vectorSearch(query, typeFilter, topK = 100) {
     headers: { Authorization: `Bearer ${VECTOR_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ data: query, topK, includeMetadata: true })
   });
-  if (!r.ok) return [];
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '');
+    console.error(`[vectorSearch] HTTP ${r.status}: ${errText}`);
+    return [];
+  }
   const data = await r.json();
   let results = (data.result || []).map(r => r.metadata).filter(Boolean);
   if (typeFilter) results = results.filter(c => (c.types || []).includes(typeFilter));
