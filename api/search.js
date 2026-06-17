@@ -901,14 +901,28 @@ export default async function handler(req, res) {
     })();
 
     if (!hardFiltered.length) {
-      // ── close match suggestions ──
-      // Relax all numeric constraints, keep structural ones (type, supertype, cost types)
-      const closeMatches = applyStructuredFilters(deduped, {
+      // ── close match suggestions (tiered relaxation) ──
+      // Tier 1: relax numeric only
+      const close1 = applyStructuredFilters(deduped, {
         ...intent.criteria,
         minDamage: null, maxDamage: null,
         minEnergyCost: null, maxEnergyCost: null,
         maxRetreatCost: null,
       });
+      // Tier 2: also relax text search, keep type/supertype/structural flags
+      const close2 = close1.length ? close1 : applyStructuredFilters(deduped, {
+        ...intent.criteria,
+        minDamage: null, maxDamage: null,
+        minEnergyCost: null, maxEnergyCost: null,
+        maxRetreatCost: null,
+        cardTextContains: null,
+      });
+      // Tier 3: keep only supertype + types (most permissive)
+      const close3 = close2.length ? close2 : applyStructuredFilters(deduped, {
+        requireSupertype: intent.criteria.requireSupertype,
+        requireTypes: intent.criteria.requireTypes,
+      });
+      const closeMatches = close3;
       if (closeMatches.length > 0) {
         const targetDmg = intent.criteria.minDamage ?? intent.criteria.maxDamage ?? null;
         const sorted = [...closeMatches]
