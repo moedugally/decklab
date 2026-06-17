@@ -375,6 +375,28 @@ function mergeRRF(resultSets, k = 60) {
 
 // ── structured filters ────────────────────────────────────────────────────────
 
+// Returns the maximum damage a single attack can deal, accounting for conditional bonuses.
+// damage: "50+"  text: "...does 50 more damage..." → 100
+// damage: ""     text: "...does 50 damage to..."   → 50
+// damage: "40×"  → 40 (can't statically know multiplier, use base)
+// damage: "120"  → 120 (no suffix)
+function parseMaxDamage(attack) {
+  const raw  = (attack.damage || '').trim();
+  const base = parseInt(raw.replace(/[^0-9]/g, '')) || 0;
+  if (!raw.includes('+') && raw !== '') return base;
+
+  const text = (attack.text || '').toLowerCase();
+  const bonuses = [...text.matchAll(/(?:this attack does|does) (\d+) more damage/g)].map(m => parseInt(m[1]));
+  if (raw.includes('+') && bonuses.length) return base + Math.max(...bonuses);
+
+  // Empty damage field — look for the primary damage value in the text
+  if (raw === '') {
+    const stated = [...text.matchAll(/this attack does (\d+) damage/g)].map(m => parseInt(m[1]));
+    if (stated.length) return Math.max(...stated);
+  }
+  return base;
+}
+
 function applyStructuredFilters(cards, criteria) {
   if (!criteria) return cards;
   const {
@@ -476,7 +498,7 @@ function applyStructuredFilters(cards, criteria) {
     if (!attacks.length) return !hasDmg;
 
     return attacks.some(a => {
-      const dmg  = parseInt((a.damage || '').replace(/[^0-9]/g, '')) || 0;
+      const dmg  = parseMaxDamage(a);
       const raw  = a.convertedEnergyCost;
       const cost = raw !== null && raw !== undefined
         ? parseInt(raw, 10)
@@ -662,10 +684,13 @@ async function fetchByName(query, typeFilter) {
   let cards = (data.data || []).filter(c => STANDARD_MARKS.includes(c.regulationMark));
   if (typeFilter) cards = cards.filter(c => (c.types || []).includes(typeFilter));
 
-  // One card per (name × set), keeping the lowest rarity (base rare over full art / hyper rare)
+  // One card per (name × set × attack set), keeping the lowest rarity.
+  // Attack fingerprint distinguishes same-name same-set variants (e.g. Paldean Tauros
+  // SSP18/SSP39/SSP101 are different cards with different attacks from the same set).
   const groups = new Map();
   for (const card of cards) {
-    const key = `${(card.name || '').toLowerCase()}|${card.set?.id || ''}`;
+    const attackFp = (card.attacks || []).map(a => (a.name || '').toLowerCase()).sort().join('|');
+    const key = `${(card.name || '').toLowerCase()}|${card.set?.id || ''}|${attackFp}`;
     const existing = groups.get(key);
     if (!existing || rarityRank(card.rarity) < rarityRank(existing.rarity)) {
       groups.set(key, card);
@@ -685,7 +710,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v45:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v46:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
@@ -807,22 +832,21 @@ export default async function handler(req, res) {
     const deduped = dedupeByBaseRarity(cards);
 
     // ── hard structured filters ──
-    let fallbackFired = false;
+    const fallbackFired = false;
     const hardFiltered = (() => {
       const f1 = applyStructuredFilters(deduped, intent.criteria);
       if (f1.length > 0) return f1;
-      // Relax numeric constraints first
+      // Relax only numeric constraints — never drop cardTextContains or structural filters,
+      // otherwise we'd show cards that don't match the mechanic the user asked for.
       const f2 = applyStructuredFilters(deduped, { ...intent.criteria, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
       if (f2.length > 0) return f2;
-      // If cardTextContains phrases didn't match any card text, drop only the text
-      // filter so other structural constraints still apply
-      if (intent.criteria?.cardTextContains) {
-        const f3 = applyStructuredFilters(deduped, { ...intent.criteria, cardTextContains: null, minDamage: null, maxEnergyCost: null, maxRetreatCost: null });
-        if (f3.length > 0 && f3.length < deduped.length) return f3;
-      }
-      fallbackFired = true;
-      return deduped;
+      return [];
     })();
+
+    if (!hardFiltered.length) {
+      write({ _done: true, _count: 0, _debug: { intent: intent.type, criteria: intent.criteria, candidateCount: vectorCards.length, afterFilter: 0, fallbackFired: false } });
+      return res.end();
+    }
 
     // ── feedback filtering + positive boost ──
     const preFiltered = await filterFlagged(query, hardFiltered);

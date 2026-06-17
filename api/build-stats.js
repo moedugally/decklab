@@ -13,12 +13,26 @@ const STANDARD_MARKS = ['H', 'I', 'J'];
 const STATS_KEY = 'statsindex';
 const STATS_TTL = 60 * 60 * 24 * 30; // 30 days
 
+function parseMaxDamage(atk) {
+  const raw  = (atk.damage || '').trim();
+  const base = parseInt(raw.replace(/[^0-9]/g, '')) || 0;
+  if (!raw.includes('+') && raw !== '') return base;
+  const text = (atk.text || '').toLowerCase();
+  const bonuses = [...text.matchAll(/(?:this attack does|does) (\d+) more damage/g)].map(m => parseInt(m[1]));
+  if (raw.includes('+') && bonuses.length) return base + Math.max(...bonuses);
+  if (raw === '') {
+    const stated = [...text.matchAll(/this attack does (\d+) damage/g)].map(m => parseInt(m[1]));
+    if (stated.length) return Math.max(...stated);
+  }
+  return base;
+}
+
 function extractStats(meta) {
   let maxDamage = 0;
   let minEnergyForBestAtk = 99;
 
   for (const atk of (meta.attacks || [])) {
-    const dmg  = parseInt((atk.damage || '').replace(/[^0-9]/g, '')) || 0;
+    const dmg  = parseMaxDamage(atk);
     const cost = atk.convertedEnergyCost !== null && atk.convertedEnergyCost !== undefined
       ? parseInt(atk.convertedEnergyCost, 10)
       : (Array.isArray(atk.cost) ? atk.cost.length : 0);
