@@ -161,6 +161,7 @@ Return this exact JSON shape:
     "excludePokemonRule": <true if query says '1 prize', 'non-ex', 'non-V', 'single prize' — excludes ex/V/VMAX/VSTAR, else false>,
     "requirePokemonRule": <true if query says '2 prize', 'ex only', 'V pokemon' — requires rule box, else false>,
     "cardTextContains": "<string OR array of strings — card ability/attack/rule text must contain ANY of these phrases. Use an array when the mechanic can be described multiple ways. e.g. 'move damage counters' or ['each of your', 'all of your Pokémon'] for multi-heal effects>",
+    "abilityTextContains": "<string OR array of strings — ONLY the card's Ability text is searched. Use instead of cardTextContains when the mechanic lives exclusively in an Ability (e.g. bench damage-boosting abilities, damage-reduction abilities). Leave null unless you are certain the relevant text appears only in Abilities, not attacks or rules.>",
     "requireWeakness": "<energy type the card must be weak to, e.g. 'Grass', 'Fire', 'Water' — or null>",
     "requireResistance": "<energy type the card must resist, e.g. 'Psychic', 'Metal' — or null>",
     "requireSubtype": "<specific subtype: 'Item'|'Supporter'|'Stadium'|'Ancient'|'Future'|'Tool'|'ACE SPEC' — or null. Use this for trainer subtypes AND pokemon traits>",
@@ -231,6 +232,8 @@ Rules:
 - "get pokemon from discard pile" / "retrieve pokemon from discard" / "recover pokemon from discard" / "pokemon recovery" / "salvage pokemon from discard" → cardTextContains: ["from your discard pile onto your Bench", "Pokémon from your discard pile", "Pokémon or a Basic Energy card from your discard pile"]
 - "get trainer from discard" / "get supporter from discard" / "get item from discard" / "retrieve trainer from discard" / "recover trainer from discard" / "trainer recovery" / "supporter recovery" → cardTextContains: ["Trainer card from your discard pile", "Supporter card from your discard pile", "Supporter cards from your discard pile", "Item card from your discard pile", "Item cards from your discard pile"]
 - "gamble" / "coin flip" / "flip a coin" / "luck-based" / "chance cards" → cardTextContains: ["Flip a coin", "flip a coin until you get tails"]
+- "ability that boosts active damage" / "modify active pokemon's damage" / "damage boost from bench" / "abilities that increase damage output" / "bench pokemon that buff active" → requireAbility: true, abilityTextContains: ["your Active Pokémon's attacks do", "attacks used by your Active Pokémon do", "damage done by your Active Pokémon", "damage your Active Pokémon does", "Active Pokémon does 10 more damage", "Active Pokémon does 20 more damage", "Active Pokémon does 30 more damage", "Active Pokémon does 40 more damage", "Active Pokémon does 50 more damage", "Active Pokémon does 60 more damage"]. Do NOT set cardTextContains for this query type — use abilityTextContains only.
+- "ability that reduces damage" / "ability that prevents damage to active" / "damage reduction ability" → requireAbility: true, abilityTextContains: ["damage done to this Pokémon is reduced", "damage dealt to this Pokémon is reduced", "attacks do 10 less damage", "attacks do 20 less damage", "attacks do 30 less damage"]
 - cardTextContains is ONLY appropriate when the mechanic has a single, exact, consistent phrase in card text (e.g. lock effects, gust, status conditions, healing, drawing, energy acceleration — these all use a small set of consistent numeric phrasings, so use the phrase lists given above rather than leaving null). Only leave cardTextContains null for mechanics with genuinely no consistent phrasing (e.g. open-ended "search" deck-thinning effects, generic damage output).
 - NEVER set requireSupertype when the query is about a mechanic that could appear on any card type — healing, drawing, searching, energy acceleration, damage placement, status effects, deck searching all appear on both Pokémon abilities/attacks AND trainer cards. Only set requireSupertype when the user explicitly says "pokemon", "trainer", "item", "supporter", "stadium", or "energy card". When in doubt, leave requireSupertype null.
 - NEVER set requireTypes when the query is about accelerating, attaching, or searching for a specific energy type — e.g. "accelerate fire energy" should NOT set requireTypes: ["Fire"]. Cards that accelerate Fire energy include Stadiums, Supporters, and non-Fire Pokémon. requireTypes only applies when the user asks for Pokémon OF that type (e.g. "fire pokemon", "water type attacker").
@@ -323,6 +326,7 @@ async function classifyQuery(query, archetypes) {
     if (c.excludePokemonRule == null)  c.excludePokemonRule         = false;
     if (c.requirePokemonRule == null)  c.requirePokemonRule         = false;
     if (c.cardTextContains == null)    c.cardTextContains           = null;
+    if (c.abilityTextContains == null) c.abilityTextContains        = null;
     if (c.requireWeakness == null)     c.requireWeakness            = null;
     if (c.requireResistance == null)   c.requireResistance          = null;
     if (c.requireSubtype == null)      c.requireSubtype             = null;
@@ -444,7 +448,7 @@ function applyStructuredFilters(cards, criteria) {
     minDamage, maxDamage, minEnergyCost, maxEnergyCost, maxRetreatCost,
     excludeNames, requireSupertype, requireTypes,
     requireColorlessAttacksOnly, requireAttackCostTypes, requireAbility, requireStage,
-    excludePokemonRule, requirePokemonRule, cardTextContains,
+    excludePokemonRule, requirePokemonRule, cardTextContains, abilityTextContains,
     requireWeakness, requireResistance, requireSubtype,
     minHP, maxHP, minAttacks, maxAttacks,
   } = criteria;
@@ -517,6 +521,14 @@ function applyStructuredFilters(cards, criteria) {
     const atkCount = (card.attacks || []).length;
     if (minAttacks !== null && minAttacks !== undefined && atkCount < minAttacks) return false;
     if (maxAttacks !== null && maxAttacks !== undefined && atkCount > maxAttacks) return false;
+
+    // Ability-only text filter — phrase match against ability text only.
+    if (abilityTextContains) {
+      const norm2   = s => (typeof s === 'string' ? s : '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const needles = (Array.isArray(abilityTextContains) ? abilityTextContains : [abilityTextContains]).flat();
+      const abilityText = (card.abilities || []).map(a => norm2(a.text)).join(' ');
+      if (!needles.some(n => abilityText.includes(norm2(n)))) return false;
+    }
 
     // Card text filter — phrase match against ability/attack/rules text.
     // Normalizes accents so "Pokémon" matches "pokemon" etc.
@@ -777,7 +789,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v55:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v56:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
