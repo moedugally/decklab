@@ -114,7 +114,9 @@ function statStoreFilter(store, criteria) {
     if (!hasDmg && !hasCost) return true;
     if (!c.maxDamage && hasDmg) return false;
 
-    const dmgOk  = !hasDmg  || c.maxDamage >= minDamage;
+    // × attacks are uncapped — always qualify for any minDamage filter
+    const hasMultiplierAtk = (c.attacks || []).some(a => (a.damage || '').includes('×'));
+    const dmgOk  = !hasDmg  || c.maxDamage >= minDamage || hasMultiplierAtk;
     const costOk = !hasCost || c.minEnergyForBestAtk <= maxEnergyCost;
     return dmgOk && costOk;
   });
@@ -399,16 +401,19 @@ function mergeRRF(resultSets, k = 60) {
 
 // ── structured filters ────────────────────────────────────────────────────────
 
-// Returns the maximum damage a single attack can deal, accounting for conditional bonuses.
-// damage: "50+"  text: "...does 50 more damage..." → 100
-// damage: ""     text: "...does 50 damage to..."   → 50
-// damage: "40×"  → 40 (can't statically know multiplier, use base)
-// damage: "120"  → 120 (no suffix)
-// Returns { min: baseDamage, max: maxPossibleDamage } for range checks.
-// For fixed damage ("170") min===max. For variable ("50+") min=50, max=100 (if bonus found).
+// Returns { min, max } damage range for an attack.
+// "170"  → { min:170, max:170 }
+// "50+"  → { min:50,  max:100 } (reads "does N more damage" from text)
+// "80×"  → { min:80,  max:Infinity } — multiplier attacks: min is base (1 hit),
+//           max is uncapped. Passes any minDamage filter; fails exactDamage filter
+//           unless base === target (guaranteeing at least that value).
 function parseDamageRange(attack) {
   const raw  = (attack.damage || '').trim();
   const base = parseInt(raw.replace(/[^0-9]/g, '')) || 0;
+
+  // Multiplier attacks (×) — min is base, max is unbounded
+  if (raw.includes('×')) return { min: base, max: Infinity };
+
   if (!raw.includes('+') && raw !== '') return { min: base, max: base };
 
   const text = (attack.text || '').toLowerCase();
@@ -422,8 +427,11 @@ function parseDamageRange(attack) {
   return { min: base, max: base };
 }
 
-// Convenience: max possible damage (used by stat store and build-stats)
-function parseMaxDamage(attack) { return parseDamageRange(attack).max; }
+// Convenience: max possible damage capped at 9999 for storage/sorting (Infinity → 9999)
+function parseMaxDamage(attack) {
+  const max = parseDamageRange(attack).max;
+  return max === Infinity ? 9999 : max;
+}
 
 function applyStructuredFilters(cards, criteria) {
   if (!criteria) return cards;
@@ -764,7 +772,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v53:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v54:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {

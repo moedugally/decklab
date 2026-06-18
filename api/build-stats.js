@@ -16,6 +16,7 @@ const STATS_TTL = 60 * 60 * 24 * 30; // 30 days
 function parseMaxDamage(atk) {
   const raw  = (atk.damage || '').trim();
   const base = parseInt(raw.replace(/[^0-9]/g, '')) || 0;
+  if (raw.includes('×')) return base > 0 ? 9999 : 0; // uncapped multiplier
   if (!raw.includes('+') && raw !== '') return base;
   const text = (atk.text || '').toLowerCase();
   const bonuses = [...text.matchAll(/(?:this attack does|does) (\d+) more damage/g)].map(m => parseInt(m[1]));
