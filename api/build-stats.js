@@ -19,6 +19,7 @@ function parseMaxDamage(atk) {
   if (raw.includes('×')) return base > 0 ? 9999 : 0; // uncapped multiplier
   if (!raw.includes('+') && raw !== '') return base;
   const text = (atk.text || '').toLowerCase();
+  if (raw.includes('+') && /flip.*until you get tails/i.test(text)) return 9999; // unbounded flip
   const bonuses = [...text.matchAll(/(?:this attack does|does) (\d+) more damage/g)].map(m => parseInt(m[1]));
   if (raw.includes('+') && bonuses.length) return base + Math.max(...bonuses);
   if (raw === '') {

@@ -114,9 +114,12 @@ function statStoreFilter(store, criteria) {
     if (!hasDmg && !hasCost) return true;
     if (!c.maxDamage && hasDmg) return false;
 
-    // × attacks are uncapped — always qualify for any minDamage filter
-    const hasMultiplierAtk = (c.attacks || []).some(a => (a.damage || '').includes('×'));
-    const dmgOk  = !hasDmg  || c.maxDamage >= minDamage || hasMultiplierAtk;
+    // Uncapped attacks (× or "flip until tails") always qualify for any minDamage filter
+    const hasUncappedAtk = (c.attacks || []).some(a =>
+      (a.damage || '').includes('×') ||
+      ((a.damage || '').includes('+') && /flip.*until you get tails/i.test(a.text || ''))
+    );
+    const dmgOk  = !hasDmg  || c.maxDamage >= minDamage || hasUncappedAtk;
     const costOk = !hasCost || c.minEnergyForBestAtk <= maxEnergyCost;
     return dmgOk && costOk;
   });
@@ -417,6 +420,8 @@ function parseDamageRange(attack) {
   if (!raw.includes('+') && raw !== '') return { min: base, max: base };
 
   const text = (attack.text || '').toLowerCase();
+  // "flip...until you get tails" = unbounded repetition → uncapped
+  if (raw.includes('+') && /flip.*until you get tails/i.test(text)) return { min: base, max: Infinity };
   const bonuses = [...text.matchAll(/(?:this attack does|does) (\d+) more damage/g)].map(m => parseInt(m[1]));
   if (raw.includes('+') && bonuses.length) return { min: base, max: base + Math.max(...bonuses) };
 
@@ -772,7 +777,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v54:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v55:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
