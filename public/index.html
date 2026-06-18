@@ -216,6 +216,58 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:22px 4
 .ac-item:hover,.ac-item.ac-focused{background:var(--s2);color:var(--text)}
 .ac-item i{font-size:13px;color:var(--text3);flex-shrink:0}
 .ac-item:hover i,.ac-item.ac-focused i{color:var(--red2)}
+
+/* ── MOBILE ────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Landing nav */
+  nav { padding: 16px 20px; }
+
+  /* Hero */
+  .hero { padding: 36px 20px 28px; }
+  .hero-title { font-size: 36px; letter-spacing: -1.5px; }
+  .hero-sub { font-size: 15px; margin-bottom: 28px; }
+  .cta-primary { margin-bottom: 36px; padding: 13px 28px; }
+  /* Features: stack vertically */
+  .features { grid-template-columns: 1fr; }
+  .feat { padding: 24px 20px; }
+
+  /* Footer: stack */
+  .footer { flex-direction: column; align-items: flex-start; gap: 6px; padding: 20px; }
+  .footer-txt { text-align: left !important; }
+
+  /* App nav */
+  .app-nav { padding: 14px 16px; }
+
+  /* Search area */
+  .app-hero { padding: 18px 16px 12px; }
+  .app-label { display: none; }
+  .app-input { font-size: 16px; padding: 12px 14px; } /* 16px prevents iOS zoom */
+  .app-go { padding: 0 18px; font-size: 13px; }
+
+  /* Type filter */
+  .filter-strip { padding: 10px 16px 4px; }
+
+  /* Suggestion chips: single scrollable row, no wrap */
+  .sugg-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 8px 16px 12px; }
+  .sugg-row::-webkit-scrollbar { display: none; }
+
+  /* Results */
+  .results-col { padding: 0 12px 24px; }
+  .app-status { padding: 8px 16px 7px; }
+
+  /* App body: use dvh so mobile browser chrome doesn't eat space */
+  .app-body { height: calc(100dvh - 168px); }
+
+  /* Detail panel: full-screen overlay instead of side column */
+  .detail-col.open {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    z-index: 200;
+    border-left: none;
+    border-top: 0.5px solid var(--line);
+  }
+}
 </style>
 </head>
 <body>
