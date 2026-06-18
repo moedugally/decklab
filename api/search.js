@@ -792,7 +792,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v60:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v61:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
@@ -884,11 +884,21 @@ export default async function handler(req, res) {
     let cards = vectorCards;
     const hasNumericConstraints =
       (intent.criteria?.minDamage || intent.criteria?.maxEnergyCost);
+    const hasAbilityTextFilter = !!(intent.criteria?.abilityTextContains);
 
-    if (hasNumericConstraints) {
+    if (hasNumericConstraints || hasAbilityTextFilter) {
       const statStore = await getStatStore();
       if (statStore) {
-        const statMatches = statStoreFilter(statStore, intent.criteria);
+        const norm2 = s => (typeof s === 'string' ? s : '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        let statMatches = hasNumericConstraints ? statStoreFilter(statStore, intent.criteria) : statStore;
+        if (hasAbilityTextFilter) {
+          const needles = (Array.isArray(intent.criteria.abilityTextContains)
+            ? intent.criteria.abilityTextContains
+            : [intent.criteria.abilityTextContains]).flat();
+          statMatches = statMatches.filter(s =>
+            (s.abilities || []).some(a => needles.some(n => norm2(a.text).includes(norm2(n))))
+          );
+        }
         const vectorIds = new Set(vectorCards.map(c => c.id));
         // Convert stat store entries to the same shape as vector results
         const newFromStats = statMatches
