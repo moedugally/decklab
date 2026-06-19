@@ -57,6 +57,26 @@ const TEST_CASES = [
     query: 'pokemon that do damage based on existing damage counters',
     mustInclude: ['Glalie', 'Galarian Obstagoon', 'Mega Feraligatr', "N's Reshiram"],
   },
+  {
+    query: 'heal damage from pokémon',
+    mustInclude: ['Potion', 'Cook', 'Super Potion', 'Indeedee', 'Leavanny'],
+  },
+  {
+    query: 'draw cards from deck',
+    mustInclude: ['Naveen', 'Lacey', 'Cheren', 'Alakazam', 'Rabsca'],
+  },
+  {
+    query: 'move energy between pokémon',
+    mustInclude: ['Energy Switch', "N's Plan", 'Kilowattrel', 'Frosmoth', 'Tornadus'],
+  },
+  {
+    query: 'bench protection ability',
+    mustInclude: ['Shaymin', 'Poltchageist', "Misty's Magikarp", 'Antique Plume Fossil'],
+  },
+  {
+    query: 'spread damage to bench',
+    mustInclude: ['Emolga', 'Ting-Lu'],
+  },
 ];
 
 // ============================================================

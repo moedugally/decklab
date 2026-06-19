@@ -382,6 +382,13 @@ function matchMechanic(lq) {
       'bench snipe damage opponent benched pokemon'
     );
   }
+  // bench protection
+  if (/bench.protect|protect.*bench|prevent.*damage.*bench|bench.*prevent.*damage|bench.barrier|bench.*immune|safe.*bench|defend.*bench/i.test(lq)) {
+    return makeMechanicIntent(
+      ["on your Bench, prevent all damage", "prevent all damage done to your Benched Pokémon", "prevent all damage from and effects of attacks from your opponent's Pokémon done to this Pokémon", "As long as this Pokémon is on your Bench, prevent all damage done to this Pokémon by attacks"],
+      'bench protection prevent damage to benched pokemon bench barrier'
+    );
+  }
   // spread damage
   if (/spread.*damage|damage.*all.*bench|snipe.*whole.*bench|damage.*every.*bench/i.test(lq)) {
     return makeMechanicIntent(
@@ -1059,7 +1066,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v76:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v77:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
