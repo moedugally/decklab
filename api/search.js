@@ -403,8 +403,30 @@ function matchMechanic(lq) {
       'mill discard top cards opponent deck deck-out'
     );
   }
-  // special energy — any query mentioning special energy: hard filter to cards whose text says "Special Energy"
+  // special energy — split by intent
   if (/special.energy/i.test(lq)) {
+    // discard/remove opponent's special energy
+    if (/discard|remove|strip|destroy|get rid/i.test(lq)) {
+      return makeMechanicIntent(
+        ["discard a Special Energy", "Pokémon Tools and Special Energy from your opponent's", "discard all Special Energy"],
+        'discard remove Special Energy from opponent pokemon Enhanced Hammer Blowtorch'
+      );
+    }
+    // recover/retrieve special energy from discard
+    if (/recover|retrieve|get back|recycle|from.*discard|discard.*pile/i.test(lq)) {
+      return makeMechanicIntent(
+        ["attach this card from your discard pile to that Pokémon after attacking", "put this card into your hand after attack damage", "put this Pokémon, all cards attached to it"],
+        'recover retrieve Special Energy from discard pile Boomerang Nitro Fire Legacy Energy'
+      );
+    }
+    // accelerate / get into hand / attach — no dedicated cards exist, show the special energy list
+    if (/accel|attach|get.*hand|search|put.*hand|into.*hand/i.test(lq)) {
+      return makeMechanicIntent(null, 'special energy cards standard legal attach to pokemon', {
+        requireSupertype: 'energy',
+        requireSubtype: 'Special',
+      });
+    }
+    // benefit from / work with / synergy — cards that mention Special Energy in their text
     return makeMechanicIntent(
       ['Special Energy'],
       lq + ' special energy card standard legal'
@@ -1080,7 +1102,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v81:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v82:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
