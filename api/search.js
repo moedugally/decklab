@@ -403,19 +403,12 @@ function matchMechanic(lq) {
       'mill discard top cards opponent deck deck-out'
     );
   }
-  // special energy — discard opponent's special energy (trainer tools like Enhanced Hammer)
-  if (/special.energy/i.test(lq) && /discard|remove|strip|destroy|get rid/i.test(lq) && /opponent/i.test(lq)) {
-    return makeMechanicIntent(
-      ["discard a Special Energy", "Pokémon Tools and Special Energy from your opponent's", "discard all Special Energy"],
-      'discard remove opponent special energy enhanced hammer'
-    );
-  }
-  // special energy — any other query mentioning special energy → show all standard-legal special energies
+  // special energy — any query mentioning special energy: hard filter to cards whose text says "Special Energy"
   if (/special.energy/i.test(lq)) {
-    return makeMechanicIntent(null, 'special energy cards standard legal all types', {
-      requireSupertype: 'energy',
-      requireSubtype: 'Special',
-    });
+    return makeMechanicIntent(
+      ['Special Energy'],
+      lq + ' special energy card standard legal'
+    );
   }
   // evolution lock
   if (/evolution.lock|prevent.*evolv|stop.*evolv|can.t.*evolv/i.test(lq)) {
@@ -1087,7 +1080,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v80:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v81:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
