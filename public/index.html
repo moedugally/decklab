@@ -740,6 +740,7 @@ async function submitMissed(query,cardId,cardName){
     await fetch('/api/missed',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({query,cardId,cardName})});
   }catch(e){ /* non-fatal */ }
+  setTimeout(()=>closeMissForm(),2500);
 }
 
 async function sendFeedback(e,cardId,type){
