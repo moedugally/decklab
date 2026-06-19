@@ -66,14 +66,23 @@ async function runSearch(endpoint, query) {
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, format: 'standard', type: 'all' }),
+      body: JSON.stringify({ query, type: '' }),
     });
     if (!res.ok) {
       return { error: `HTTP ${res.status}` };
     }
-    const data = await res.json();
-    // Adjust this based on your actual API response shape
-    const cardNames = (data.cards || data.results || []).map(c => c.name || c.cardName || '');
+    // API streams NDJSON — one JSON object per line.
+    // Card result lines have a `name` field; the final line has `_done`.
+    const text = await res.text();
+    const cardNames = [];
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const obj = JSON.parse(trimmed);
+        if (obj.name) cardNames.push(obj.name);
+      } catch { /* skip malformed lines */ }
+    }
     return { cardNames };
   } catch (e) {
     return { error: e.message };
