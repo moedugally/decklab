@@ -435,6 +435,8 @@ function matchMechanic(lq) {
           "discard a Special Energy", "discard all Special Energy",
           "Pokémon Tools and Special Energy from your opponent's",
           "discard all Pokémon Tools and Special Energy",
+          "and a Special Energy from 1 of your opponent's",
+          "or Special Energy card from 1 of your opponent's",
         ],
       }
     );
@@ -1109,7 +1111,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v83:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v84:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
