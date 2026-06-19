@@ -193,6 +193,7 @@ Rules:
 - "requires metal energy" → requireAttackCostTypes: ["Metal"]
 - "requires water or lightning energy" / "for my water/lightning deck" → requireAttackCostTypes: ["Water", "Lightning"]
 - CRITICAL DISTINCTION: "1 water energy" in attack cost context → requireAttackCostTypes: ["Water"] (Water OR Colorless slots both qualify). "1 colorless energy" → requireColorlessAttacksOnly: true (ONLY Colorless slots qualify — Water energy cannot pay for a Colorless cost slot from the player's perspective here).
+- CRITICAL DISTINCTION — damage vs. damage counters: These are NOT the same mechanic. "Damage" refers to attack damage (affected by weakness, resistance, and protective effects). "Damage counters" are placed directly on Pokémon and bypass weakness, resistance, and all damage-modifying effects. NEVER use minDamage/maxDamage for queries about placing damage counters. NEVER return attacks that deal damage in response to a query about placing damage counters. Use cardTextContains with "place X damage counters" / "put X damage counters" phrases instead.
 - "1 prize" / "non-ex" / "non-V" / "single prize" → excludePokemonRule: true
 - "move damage" / "transfer damage counters" → cardTextContains: "move damage counters"
 - "discard energy from opponent" → cardTextContains: "discard an Energy"
@@ -793,7 +794,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v62:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v63:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
