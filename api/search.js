@@ -302,9 +302,9 @@ function makeMechanicIntent(cardTextContains, rewrittenQuery, extra = {}) {
       maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [],
       requireColorlessAttacksOnly: false, requireAttackCostTypes: [], requireAbility: false,
       requireStage: null, excludePokemonRule: false, requirePokemonRule: false,
-      cardTextContains, abilityTextContains: null, requireWeakness: null,
-      requireResistance: null, requireSubtype: null, minHP: null, maxHP: null,
-      minAttacks: null, maxAttacks: null,
+      cardTextContains, abilityTextContains: null, excludeCardTextContains: null,
+      requireWeakness: null, requireResistance: null, requireSubtype: null,
+      minHP: null, maxHP: null, minAttacks: null, maxAttacks: null,
       ...extra,
     },
   };
@@ -424,59 +424,84 @@ function matchMechanic(lq) {
       'force opponent to switch active pokemon'
     );
   }
-  // typed energy acceleration — use only type-specific phrases to avoid pulling in other types
+  // Typed energy acceleration.
+  // Include: type-specific phrases + generic "Basic Energy" phrases (any basic energy can be fire/water/etc.)
+  // Exclude: type-specific phrases for OTHER energy types (a "Basic Lightning Energy" card cannot be fire).
+  const NON_FIRE_ENERGY    = ["Basic Water Energy", "Basic Grass Energy", "Basic Lightning Energy", "Basic Psychic Energy", "Basic Fighting Energy", "Basic Darkness Energy", "Basic Metal Energy"];
+  const NON_WATER_ENERGY   = ["Basic Fire Energy", "Basic Grass Energy", "Basic Lightning Energy", "Basic Psychic Energy", "Basic Fighting Energy", "Basic Darkness Energy", "Basic Metal Energy"];
+  const NON_GRASS_ENERGY   = ["Basic Fire Energy", "Basic Water Energy", "Basic Lightning Energy", "Basic Psychic Energy", "Basic Fighting Energy", "Basic Darkness Energy", "Basic Metal Energy"];
+  const NON_LIGHTNING_ENERGY = ["Basic Fire Energy", "Basic Water Energy", "Basic Grass Energy", "Basic Psychic Energy", "Basic Fighting Energy", "Basic Darkness Energy", "Basic Metal Energy"];
+  const NON_PSYCHIC_ENERGY = ["Basic Fire Energy", "Basic Water Energy", "Basic Grass Energy", "Basic Lightning Energy", "Basic Fighting Energy", "Basic Darkness Energy", "Basic Metal Energy"];
+  const NON_FIGHTING_ENERGY = ["Basic Fire Energy", "Basic Water Energy", "Basic Grass Energy", "Basic Lightning Energy", "Basic Psychic Energy", "Basic Darkness Energy", "Basic Metal Energy"];
+  const NON_DARK_ENERGY    = ["Basic Fire Energy", "Basic Water Energy", "Basic Grass Energy", "Basic Lightning Energy", "Basic Psychic Energy", "Basic Fighting Energy", "Basic Metal Energy"];
+  const NON_METAL_ENERGY   = ["Basic Fire Energy", "Basic Water Energy", "Basic Grass Energy", "Basic Lightning Energy", "Basic Psychic Energy", "Basic Fighting Energy", "Basic Darkness Energy"];
+  const GENERIC_ENERGY_PHRASES = [
+    "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile",
+    "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon",
+    "attach an Energy card from your hand to your Active",
+    "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile",
+  ];
+
   if (/accel.*fire|fire.*accel|fire.*energy.*accel|attach.*fire.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Fire Energy card", "search your deck for a Basic Fire Energy card and attach", "attach up to 2 Basic Fire Energy", "attach up to 3 Basic Fire Energy", "Basic Fire Energy card from your discard pile", "Basic Fire Energy cards from your discard pile"],
-      'accelerate fire energy attach fire energy from discard pile'
+      ["attach a Basic Fire Energy card", "search your deck for a Basic Fire Energy card and attach", "attach up to 2 Basic Fire Energy", "Basic Fire Energy card from your discard pile", "Basic Fire Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate fire energy attach fire energy from discard pile',
+      { excludeCardTextContains: NON_FIRE_ENERGY }
     );
   }
   if (/accel.*water|water.*accel|water.*energy.*accel|attach.*water.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Water Energy card", "search your deck for a Basic Water Energy card and attach", "attach up to 2 Basic Water Energy", "attach up to 3 Basic Water Energy", "Basic Water Energy card from your discard pile", "Basic Water Energy cards from your discard pile"],
-      'accelerate water energy attach water energy from discard pile'
+      ["attach a Basic Water Energy card", "search your deck for a Basic Water Energy card and attach", "attach up to 2 Basic Water Energy", "Basic Water Energy card from your discard pile", "Basic Water Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate water energy attach water energy from discard pile',
+      { excludeCardTextContains: NON_WATER_ENERGY }
     );
   }
   if (/accel.*grass|grass.*accel|grass.*energy.*accel|attach.*grass.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Grass Energy card", "search your deck for a Basic Grass Energy card and attach", "attach up to 2 Basic Grass Energy", "attach up to 3 Basic Grass Energy", "Basic Grass Energy card from your discard pile", "Basic Grass Energy cards from your discard pile"],
-      'accelerate grass energy attach grass energy from discard pile'
+      ["attach a Basic Grass Energy card", "search your deck for a Basic Grass Energy card and attach", "attach up to 2 Basic Grass Energy", "Basic Grass Energy card from your discard pile", "Basic Grass Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate grass energy attach grass energy from discard pile',
+      { excludeCardTextContains: NON_GRASS_ENERGY }
     );
   }
   if (/accel.*lightning|lightning.*accel|lightning.*energy.*accel|attach.*lightning.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Lightning Energy card", "search your deck for a Basic Lightning Energy card and attach", "attach up to 2 Basic Lightning Energy", "attach up to 3 Basic Lightning Energy", "Basic Lightning Energy card from your discard pile", "Basic Lightning Energy cards from your discard pile"],
-      'accelerate lightning energy attach lightning energy from discard pile'
+      ["attach a Basic Lightning Energy card", "search your deck for a Basic Lightning Energy card and attach", "attach up to 2 Basic Lightning Energy", "Basic Lightning Energy card from your discard pile", "Basic Lightning Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate lightning energy attach lightning energy from discard pile',
+      { excludeCardTextContains: NON_LIGHTNING_ENERGY }
     );
   }
   if (/accel.*psychic|psychic.*accel|psychic.*energy.*accel|attach.*psychic.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Psychic Energy card", "search your deck for a Basic Psychic Energy card and attach", "attach up to 2 Basic Psychic Energy", "attach up to 3 Basic Psychic Energy", "Basic Psychic Energy card from your discard pile", "Basic Psychic Energy cards from your discard pile"],
-      'accelerate psychic energy attach psychic energy from discard pile'
+      ["attach a Basic Psychic Energy card", "search your deck for a Basic Psychic Energy card and attach", "attach up to 2 Basic Psychic Energy", "Basic Psychic Energy card from your discard pile", "Basic Psychic Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate psychic energy attach psychic energy from discard pile',
+      { excludeCardTextContains: NON_PSYCHIC_ENERGY }
     );
   }
   if (/accel.*fighting|fighting.*accel|fighting.*energy.*accel|attach.*fighting.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Fighting Energy card", "search your deck for a Basic Fighting Energy card and attach", "attach up to 2 Basic Fighting Energy", "attach up to 3 Basic Fighting Energy", "Basic Fighting Energy card from your discard pile", "Basic Fighting Energy cards from your discard pile"],
-      'accelerate fighting energy attach fighting energy from discard pile'
+      ["attach a Basic Fighting Energy card", "search your deck for a Basic Fighting Energy card and attach", "attach up to 2 Basic Fighting Energy", "Basic Fighting Energy card from your discard pile", "Basic Fighting Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate fighting energy attach fighting energy from discard pile',
+      { excludeCardTextContains: NON_FIGHTING_ENERGY }
     );
   }
   if (/accel.*dark|dark.*accel|dark.*energy.*accel|attach.*dark.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Darkness Energy card", "search your deck for a Basic Darkness Energy card and attach", "attach up to 2 Basic Darkness Energy", "attach up to 3 Basic Darkness Energy", "Basic Darkness Energy card from your discard pile", "Basic Darkness Energy cards from your discard pile"],
-      'accelerate darkness energy attach darkness energy from discard pile'
+      ["attach a Basic Darkness Energy card", "search your deck for a Basic Darkness Energy card and attach", "attach up to 2 Basic Darkness Energy", "Basic Darkness Energy card from your discard pile", "Basic Darkness Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate darkness energy attach darkness energy from discard pile',
+      { excludeCardTextContains: NON_DARK_ENERGY }
     );
   }
   if (/accel.*metal|metal.*accel|metal.*energy.*accel|attach.*metal.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Metal Energy card", "search your deck for a Basic Metal Energy card and attach", "attach up to 2 Basic Metal Energy", "attach up to 3 Basic Metal Energy", "Basic Metal Energy card from your discard pile", "Basic Metal Energy cards from your discard pile"],
-      'accelerate metal energy attach metal energy from discard pile'
+      ["attach a Basic Metal Energy card", "search your deck for a Basic Metal Energy card and attach", "attach up to 2 Basic Metal Energy", "Basic Metal Energy card from your discard pile", "Basic Metal Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      'accelerate metal energy attach metal energy from discard pile',
+      { excludeCardTextContains: NON_METAL_ENERGY }
     );
   }
-  // generic energy acceleration (no type specified) — broad phrases OK here since no type to confuse
+  // generic energy acceleration (no type specified)
   if (/^accel(erate)?(\s+energy)?$|^energy\s+accel/i.test(lq) || (/accel/i.test(lq) && /energy/i.test(lq) && !/fire|water|grass|lightning|psychic|fighting|dark|metal/i.test(lq))) {
     return makeMechanicIntent(
-      ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      GENERIC_ENERGY_PHRASES,
       'energy acceleration attach extra energy each turn'
     );
   }
@@ -686,6 +711,7 @@ function applyStructuredFilters(cards, criteria) {
     excludePokemonRule, requirePokemonRule, cardTextContains, abilityTextContains,
     requireWeakness, requireResistance, requireSubtype,
     minHP, maxHP, minAttacks, maxAttacks,
+    excludeCardTextContains,
   } = criteria;
 
   const norm      = s => (s || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
@@ -767,14 +793,20 @@ function applyStructuredFilters(cards, criteria) {
 
     // Card text filter — phrase match against ability/attack/rules text.
     // Normalizes accents so "Pokémon" matches "pokemon" etc.
-    if (cardTextContains) {
+    if (cardTextContains || excludeCardTextContains) {
       const norm2   = s => (typeof s === 'string' ? s : '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      const needles = (Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains]).flat();
       const abilityText = (card.abilities || []).map(a => norm2(a.text)).join(' ');
       const attackText  = (card.attacks  || []).map(a => norm2(a.text)).join(' ');
       const rulesText   = (card.rules    || []).map(norm2).join(' ');
       const combined    = `${abilityText} ${attackText} ${rulesText}`;
-      if (!needles.some(n => combined.includes(norm2(n)))) return false;
+      if (cardTextContains) {
+        const needles = (Array.isArray(cardTextContains) ? cardTextContains : [cardTextContains]).flat();
+        if (!needles.some(n => combined.includes(norm2(n)))) return false;
+      }
+      if (excludeCardTextContains) {
+        const excludeNeedles = (Array.isArray(excludeCardTextContains) ? excludeCardTextContains : [excludeCardTextContains]).flat();
+        if (excludeNeedles.some(n => combined.includes(norm2(n)))) return false;
+      }
     }
 
     // Attack damage + energy cost — card passes if ANY attack satisfies ALL active constraints
@@ -1024,7 +1056,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v73:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v74:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
