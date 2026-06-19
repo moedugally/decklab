@@ -396,6 +396,13 @@ function matchMechanic(lq) {
       'spread damage to all benched pokemon'
     );
   }
+  // mill / deck discard
+  if (/\bmill\b|mill.*deck|deck.*mill|discard.*top.*opponent.*deck|discard.*opponent.*deck|deck.out/i.test(lq)) {
+    return makeMechanicIntent(
+      ["discard the top card of your opponent's deck", "discard the top 2 cards of your opponent's deck", "discard the top 3 cards of your opponent's deck", "discard the top 4 cards of your opponent's deck", "discard the top 5 cards of your opponent's deck", "discard cards from the top of your opponent's deck", "discard the top cards of your opponent's deck"],
+      'mill discard top cards opponent deck deck-out'
+    );
+  }
   // evolution lock
   if (/evolution.lock|prevent.*evolv|stop.*evolv|can.t.*evolv/i.test(lq)) {
     return makeMechanicIntent(
@@ -1066,7 +1073,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v77:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v78:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
