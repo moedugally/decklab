@@ -340,7 +340,7 @@ function matchMechanic(lq) {
     );
   }
   // hand disruption / discard from opponent hand
-  if (/hand.disrupt|discard.*opponent.*hand|shuffle.*opponent.*hand|opponent.*discard.*hand|opponent.*hand.*discard|make.*opponent.*discard/i.test(lq)) {
+  if (/hand.disrupt|discard.*opponent.*hand|shuffle.*opponent.*hand|opponent.*discard.*hand|opponent.*hand.*discard|make.*opponent.*discard|making.*opponent.*discard|force.*opponent.*discard|opponent.*lose.*card|opponent.*drop.*card/i.test(lq)) {
     return makeMechanicIntent(
       ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2", "shuffles their hand into their deck and draws", "your opponent discards cards from their hand until", "shuffles their hand and puts it on the bottom", "each player discards cards from their hand until", "Each player shuffles their hand into their deck"],
       'hand disruption discard cards from opponent hand'
@@ -1073,7 +1073,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v78:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v79:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
