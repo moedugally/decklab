@@ -445,7 +445,7 @@ function matchMechanic(lq) {
 
   if (/accel.*fire|fire.*accel|fire.*energy.*accel|attach.*fire.*energy/i.test(lq)) {
     return makeMechanicIntent(
-      ["attach a Basic Fire Energy card", "search your deck for a Basic Fire Energy card and attach", "attach up to 2 Basic Fire Energy", "Basic Fire Energy card from your discard pile", "Basic Fire Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
+      ["attach a Basic Fire Energy card", "search your deck for a Basic Fire Energy card and attach", "attach up to 2 Basic Fire Energy", "Basic Fire Energy card from your discard pile", "Basic Fire Energy cards from your discard pile", "Basic Fire Energy cards, reveal them", ...GENERIC_ENERGY_PHRASES],
       'accelerate fire energy attach from discard pile',
       { excludeCardTextContains: NON_FIRE }
     );
@@ -1059,7 +1059,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v75:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v76:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
