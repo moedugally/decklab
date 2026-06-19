@@ -735,12 +735,11 @@ function showSetPicker(query,cards,cardName){
 
 async function submitMissed(query,cardId,cardName){
   const tile=document.getElementById('miss-tile');
-  if(tile) tile.innerHTML=`<i class="ti ti-check" aria-hidden="true"></i><span>Thanks!<br>We'll add it.</span>`;
+  if(tile){tile.innerHTML=`<i class="ti ti-check" aria-hidden="true"></i><span>Thanks!<br>We'll add it.</span><button class="miss-submit" id="miss-another-btn" type="button" style="margin-top:auto">Add another card</button>`;document.getElementById('miss-another-btn').addEventListener('click',(e)=>{e.stopPropagation();openMissForm(query);});}
   try{
     await fetch('/api/missed',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({query,cardId,cardName})});
   }catch(e){ /* non-fatal */ }
-  setTimeout(()=>closeMissForm(),2500);
 }
 
 async function sendFeedback(e,cardId,type){
