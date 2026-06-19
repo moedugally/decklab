@@ -426,10 +426,17 @@ function matchMechanic(lq) {
         requireSubtype: 'Special',
       });
     }
-    // benefit from / work with / synergy — cards that mention Special Energy in their text
+    // benefit from / work with / synergy — cards that mention Special Energy but aren't removal cards
     return makeMechanicIntent(
       ['Special Energy'],
-      lq + ' special energy card standard legal'
+      lq + ' special energy card standard legal',
+      {
+        excludeCardTextContains: [
+          "discard a Special Energy", "discard all Special Energy",
+          "Pokémon Tools and Special Energy from your opponent's",
+          "discard all Pokémon Tools and Special Energy",
+        ],
+      }
     );
   }
   // evolution lock
@@ -1102,7 +1109,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v82:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v83:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
