@@ -227,7 +227,7 @@ Rules:
 - "extra prize" / "take more prizes" / "additional prize card" → cardTextContains: ["take 1 more Prize card", "take an additional Prize card", "take 2 more Prize cards", "take 3 more Prize cards", "take 1 Prize card from your opponent"]
 - "discard opponent energy" / "energy removal" / "strip energy" → cardTextContains: ["Discard an Energy from your opponent's Active", "discard all Energy attached to your opponent's Active", "discard a Special Energy", "Pokémon Tools and Special Energy from your opponent's Active", "Pokémon Tools and Special Energy from all of your opponent's Pokémon"]
 - "move energy between pokemon" / "energy transfer" / "move energy from one pokemon to another" → cardTextContains: ["energy from 1 of your Pokémon to another", "energy from this Pokémon to 1 of your Benched", "Benched Pokémon to your Active Pokémon", "energy from 1 of your other Pokémon to this Pokémon", "energy from this Pokémon to your Benched Pokémon in any way", "energy from this Pokémon to the new Benched Pokémon", "energy from your opponent's Active Pokémon to 1 of their Benched", "energy from the Attacking Pokémon to 1 of your opponent's Benched", "energy from 1 of your opponent's Pokémon to another"]
-- "damage based on opponent's damage counters" / "more damage if opponent's pokemon is already hurt" / "damage scales with damage counters on opponent's active" / "bonus damage if opponent's pokemon is damaged" → cardTextContains: ["for each damage counter on your opponent's Active", "for each damage counter on the Defending Pokémon", "already has any damage counters on it, this attack does"]. Only phrases referencing "your opponent's" or "the Defending Pokémon" qualify — do NOT use broad phrases like "damage counters on your opponent's" (matches placement cards) or "already has any damage counters on it" without the suffix (matches 35+ unrelated cards).
+- "damage based on opponent's damage counters" / "more damage if opponent's pokemon is already hurt" / "damage scales with damage counters on opponent's active" / "bonus damage if opponent's pokemon is damaged" → cardTextContains: ["for each damage counter on your opponent's Active", "opponent's Active Pokémon already has any damage counters on it, this attack does"]. Both phrases explicitly reference "your opponent's" — do NOT use "already has any damage counters on it" without the subject prefix (ambiguous, matches own-counter cards too). "for each damage counter on the Defending Pokémon" has 0 standard matches and should not be used.
 - "damage based on own damage counters" / "more damage the more injured this pokemon is" / "damage scales with damage counters on this pokemon" / "attack does more damage based on how hurt this pokemon is" → cardTextContains: ["for each damage counter on this Pokémon", "If this Pokémon has any damage counters on it", "less damage for each damage counter on this Pokémon"]. Only phrases referencing "this Pokémon" qualify.
 - "damage based on your benched pokemon's damage counters" / "more damage for each of your damaged benched pokemon" / "damage scales with your bench damage" → cardTextContains: ["for each of your Benched Pokémon that has any damage counters on it", "for each damage counter on all of your Benched", "your Benched Pokémon that has any damage counters"]
 - "pokemon that hit all pokemon with damage counters" / "damage to all pokemon that are already damaged" / "spread damage to injured pokemon" → cardTextContains: ["damage counters on it (both yours and your opponent's", "damage to each Pokémon that has any damage counters"]
@@ -286,6 +286,141 @@ Examples:
 
 User query: `;
 
+// ── deterministic mechanic matcher ──────────────────────────────────────────
+// Maps query patterns → hardcoded intents with exact cardTextContains phrases.
+// Bypasses Claude for mechanics where reliability matters most.
+function makeMechanicIntent(cardTextContains, rewrittenQuery, extra = {}) {
+  return {
+    type: 'mechanic',
+    named_card: null,
+    archetype_name: null,
+    constraints: [],
+    rewritten_query: rewrittenQuery,
+    alternative_queries: [],
+    criteria: {
+      minDamage: null, maxDamage: null, minEnergyCost: null, maxEnergyCost: null,
+      maxRetreatCost: null, excludeNames: [], requireSupertype: null, requireTypes: [],
+      requireColorlessAttacksOnly: false, requireAttackCostTypes: [], requireAbility: false,
+      requireStage: null, excludePokemonRule: false, requirePokemonRule: false,
+      cardTextContains, abilityTextContains: null, requireWeakness: null,
+      requireResistance: null, requireSubtype: null, minHP: null, maxHP: null,
+      minAttacks: null, maxAttacks: null,
+      ...extra,
+    },
+  };
+}
+
+function matchMechanic(lq) {
+  // item lock
+  if (/item.lock|block.*item|prevent.*item|opponent.*can.t.*play.*item|item.*can.t/i.test(lq)) {
+    return makeMechanicIntent(
+      ["can't play any Item cards from their hand", "your opponent can't play any Item cards"],
+      'item lock prevent opponent playing items from hand'
+    );
+  }
+  // ability lock
+  if (/ability.lock|disable.*abilit|shut.*off.*abilit|no.*abilit|block.*abilit/i.test(lq)) {
+    return makeMechanicIntent(
+      ["have no Abilities", "has no Abilities"],
+      'ability lock disable opponent abilities'
+    );
+  }
+  // attack lock / can't attack
+  if (/attack.lock|prevent.*attack|can.t.*attack|block.*attack/i.test(lq) && !/bench|damage|energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["can't use any attacks", "can't attack during your opponent's next turn", "prevented from attacking", "the Defending Pokémon can't attack", "Pokémon that have 2 or less Energy attached can't attack"],
+      'attack lock prevent opponent attacking next turn'
+    );
+  }
+  // retreat lock
+  if (/retreat.lock|prevent.*retreat|trap.*active|can.t.*retreat/i.test(lq)) {
+    return makeMechanicIntent(
+      ["opponent's Active Pokémon can't retreat", "Defending Pokémon can't retreat", "opponent's Pokémon can't retreat", "Poisoned Pokémon can't retreat", "can't retreat during your opponent's next turn"],
+      'retreat lock trap opponent active pokemon'
+    );
+  }
+  // hand disruption / discard from opponent hand
+  if (/hand.disrupt|discard.*opponent.*hand|shuffle.*opponent.*hand|opponent.*discard.*hand|opponent.*hand.*discard|make.*opponent.*discard/i.test(lq)) {
+    return makeMechanicIntent(
+      ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2", "shuffles their hand into their deck and draws", "your opponent discards cards from their hand until", "shuffles their hand and puts it on the bottom", "each player discards cards from their hand until", "Each player shuffles their hand into their deck"],
+      'hand disruption discard cards from opponent hand'
+    );
+  }
+  // move damage counters / transfer damage counters
+  if (/move.*damage.counter|transfer.*damage.counter|redirect.*damage.counter|way.*move.*damage/i.test(lq)) {
+    return makeMechanicIntent(
+      ["move any number of damage counters", "move all damage counters from", "move up to 3 damage counters", "move up to 2 damage counters", "move up to 1 damage counter", "move 3 damage counters", "move 2 damage counters", "move 1 damage counter", "move damage counters"],
+      'move transfer redirect damage counters'
+    );
+  }
+  // search deck for basic pokemon
+  if (/search.*deck.*basic|find.*basic.*deck|basic.*pok[eé]mon.*deck|deck.*basic.*pok[eé]mon/i.test(lq)) {
+    return makeMechanicIntent(
+      ["Basic Pokémon and put it onto your Bench", "Basic Pokémon and put them onto your Bench", "Basic Pokémon or 1 Evolution Pokémon, reveal them", "a Basic Pokémon, a Stage 1 Pokémon, and a Stage 2 Pokémon"],
+      'search deck for basic pokemon bench'
+    );
+  }
+  // gust / boss effect / bring up benched
+  if (/\bgust\b|boss.*effect|bring.*up.*bench|force.*active|bench.*to.*active|switch.*in.*opponent.*bench/i.test(lq)) {
+    return makeMechanicIntent(
+      ["Switch in 1 of your opponent's Benched Pokémon to the Active Spot", "your opponent switches their Active Pokémon with 1 of their Benched", "put 1 of your opponent's Benched Pokémon into the Active Spot"],
+      'gust boss bring up opponent benched pokemon active'
+    );
+  }
+  // bench snipe
+  if (/bench.snipe|snipe.*bench|damage.*bench|hit.*bench/i.test(lq) && !/spread|all/i.test(lq)) {
+    return makeMechanicIntent(
+      ["to 1 of your opponent's Benched Pokémon", "damage counter on 1 of your opponent's Benched"],
+      'bench snipe damage opponent benched pokemon'
+    );
+  }
+  // spread damage
+  if (/spread.*damage|damage.*all.*bench|snipe.*whole.*bench|damage.*every.*bench/i.test(lq)) {
+    return makeMechanicIntent(
+      ["each of your opponent's Benched Pokémon", "to each Benched Pokémon", "to all of your opponent's Benched", "each of your opponent's Benched"],
+      'spread damage to all benched pokemon'
+    );
+  }
+  // evolution lock
+  if (/evolution.lock|prevent.*evolv|stop.*evolv|can.t.*evolv/i.test(lq)) {
+    return makeMechanicIntent(
+      ["can't play any Pokémon from their hand to evolve their Pokémon", "can't play any Pokémon to evolve"],
+      'evolution lock prevent opponent evolving'
+    );
+  }
+  // place damage counters
+  if (/place.*damage.counter|put.*damage.counter|damage.counter.*placement/i.test(lq) && !/move|transfer/i.test(lq)) {
+    return makeMechanicIntent(
+      ["place 1 damage counter", "place 2 damage counters", "place 3 damage counters", "place 4 damage counters", "place 5 damage counters", "place 6 damage counters", "place 7 damage counters", "place 8 damage counters", "place 10 damage counters", "place 12 damage counters", "place damage counters on", "put 1 damage counter", "put 2 damage counters", "put 3 damage counters", "put 4 damage counters", "put 5 damage counters", "put 6 damage counters", "put damage counters on", "damage counters on each of your opponent's"],
+      'place put damage counters on opponent pokemon'
+    );
+  }
+  // energy removal / strip energy
+  if (/energy.*remov|strip.*energy|discard.*opponent.*energy|remove.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["Discard an Energy from your opponent's Active", "discard all Energy attached to your opponent's Active", "discard a Special Energy", "Pokémon Tools and Special Energy from your opponent's Active"],
+      'discard energy from opponent active pokemon'
+    );
+  }
+  // move energy between pokemon
+  if (/move.*energy.*between|energy.*transfer|transfer.*energy|move.*energy.*from.*to/i.test(lq)) {
+    return makeMechanicIntent(
+      ["energy from 1 of your Pokémon to another", "energy from this Pokémon to 1 of your Benched", "Benched Pokémon to your Active Pokémon", "energy from 1 of your other Pokémon to this Pokémon", "energy from this Pokémon to your Benched Pokémon in any way"],
+      'move transfer energy between pokemon'
+    );
+  }
+  // force opponent to switch
+  if (/force.*switch|switch.*opponent.*active|bring.*bench.*active|opponent.*switch.*active/i.test(lq) && !/item|ability/i.test(lq)) {
+    return makeMechanicIntent(
+      ["your opponent switches their Active", "your opponent's Active Pokémon to their Bench", "your opponent puts their Active"],
+      'force opponent to switch active pokemon'
+    );
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function classifyQuery(query, archetypes) {
   const lq = query.trim().toLowerCase();
 
@@ -308,6 +443,18 @@ async function classifyQuery(query, archetypes) {
   }
 
   const archetypeMatch = findArchetype(archetypes, lq);
+
+  // ── deterministic mechanic pre-classifier ──────────────────────────────────
+  // For mechanics with exact card-text phrases, bypass Claude entirely.
+  // Claude is unreliable when the prompt is long — this guarantees correctness.
+  const mechanicIntent = matchMechanic(lq);
+  if (mechanicIntent) {
+    if (archetypeMatch && (mechanicIntent.type === 'archetype' || mechanicIntent.type === 'counter')) {
+      mechanicIntent._archetype = archetypeMatch;
+    }
+    return mechanicIntent;
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -797,7 +944,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v69:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v71:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
