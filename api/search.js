@@ -356,7 +356,15 @@ function matchMechanic(lq) {
   // search deck for basic pokemon
   if (/search.*deck.*basic|find.*basic.*deck|basic.*pok[eé]mon.*deck|deck.*basic.*pok[eé]mon/i.test(lq)) {
     return makeMechanicIntent(
-      ["Basic Pokémon and put it onto your Bench", "Basic Pokémon and put them onto your Bench", "Basic Pokémon or 1 Evolution Pokémon, reveal them", "a Basic Pokémon, a Stage 1 Pokémon, and a Stage 2 Pokémon"],
+      [
+        "Basic Pokémon and put it onto your Bench",
+        "Basic Pokémon and put them onto your Bench",
+        "Basic Pokémon and put it onto their Bench",
+        "Basic Pokémon and put them onto their Bench",
+        "Basic Pokémon with 70 HP or less and put them onto your Bench",
+        "Basic Pokémon or 1 Evolution Pokémon, reveal them",
+        "a Basic Pokémon, a Stage 1 Pokémon, and a Stage 2 Pokémon",
+      ],
       'search deck for basic pokemon bench'
     );
   }
@@ -416,6 +424,92 @@ function matchMechanic(lq) {
       'force opponent to switch active pokemon'
     );
   }
+  // accelerate fire energy
+  if (/accel.*fire|fire.*accel|fire.*energy.*accel|attach.*fire.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Fire Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Fire Energy card and attach", "attach up to 2 Basic Fire Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate fire energy attach from discard pile'
+    );
+  }
+  // accelerate water energy
+  if (/accel.*water|water.*accel|water.*energy.*accel|attach.*water.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Water Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Water Energy card and attach", "attach up to 2 Basic Water Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate water energy attach from discard pile'
+    );
+  }
+  // accelerate grass energy
+  if (/accel.*grass|grass.*accel|grass.*energy.*accel|attach.*grass.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Grass Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Grass Energy card and attach", "attach up to 2 Basic Grass Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate grass energy attach from discard pile'
+    );
+  }
+  // accelerate lightning energy
+  if (/accel.*lightning|lightning.*accel|lightning.*energy.*accel|attach.*lightning.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Lightning Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Lightning Energy card and attach", "attach up to 2 Basic Lightning Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate lightning energy attach from discard pile'
+    );
+  }
+  // accelerate psychic energy
+  if (/accel.*psychic|psychic.*accel|psychic.*energy.*accel|attach.*psychic.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Psychic Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Psychic Energy card and attach", "attach up to 2 Basic Psychic Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate psychic energy attach from discard pile'
+    );
+  }
+  // accelerate fighting energy
+  if (/accel.*fighting|fighting.*accel|fighting.*energy.*accel|attach.*fighting.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Fighting Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Fighting Energy card and attach", "attach up to 2 Basic Fighting Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate fighting energy attach from discard pile'
+    );
+  }
+  // accelerate darkness energy
+  if (/accel.*dark|dark.*accel|dark.*energy.*accel|attach.*dark.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Darkness Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Darkness Energy card and attach", "attach up to 2 Basic Darkness Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate darkness energy attach from discard pile'
+    );
+  }
+  // accelerate metal energy
+  if (/accel.*metal|metal.*accel|metal.*energy.*accel|attach.*metal.*energy/i.test(lq)) {
+    return makeMechanicIntent(
+      ["attach a Basic Metal Energy card", "attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "search your deck for a Basic Metal Energy card and attach", "attach up to 2 Basic Metal Energy", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'accelerate metal energy attach from discard pile'
+    );
+  }
+  // generic energy acceleration (no type specified)
+  if (/^accel(erate)?(\s+energy)?$|^energy\s+accel/i.test(lq) || (/accel/i.test(lq) && /energy/i.test(lq) && !/fire|water|grass|lightning|psychic|fighting|dark|metal/i.test(lq))) {
+    return makeMechanicIntent(
+      ["attach a Basic Energy card from your discard pile", "attach an Energy card from your discard pile", "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon", "attach an Energy card from your hand to your Active", "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile"],
+      'energy acceleration attach extra energy each turn'
+    );
+  }
+  // damage based on existing damage counters (ambiguous — return both own + opponent phrases)
+  if (/damage.*based.*damage.counter|damage.*existing.*damage.counter|damage.*damage.counter.*exist|do.*damage.*existing.*counter/i.test(lq)) {
+    return makeMechanicIntent(
+      ["for each damage counter on your opponent's Active", "opponent's Active Pokémon already has any damage counters on it, this attack does",
+       "for each damage counter on this Pokémon", "If this Pokémon has any damage counters on it",
+       "less damage for each damage counter on this Pokémon"],
+      'damage based on existing damage counters on pokemon'
+    );
+  }
+  // heal damage
+  if (/^heal\s*damage$|^heal damage from|^heal.*pok[eé]mon$|^restore\s*hp$/i.test(lq)) {
+    return makeMechanicIntent(
+      ["heal damage", "heal 10 damage", "heal 20 damage", "heal 30 damage", "heal 40 damage", "heal 50 damage", "heal 60 damage", "heal 70 damage", "heal 80 damage", "heal 90 damage", "heal 100 damage", "heal 120 damage", "heal 150 damage", "heal all damage"],
+      'heal remove damage counters restore HP pokemon'
+    );
+  }
+  // draw cards
+  if (/^(draw cards?|card draw|draw a lot of cards?|draw cards? from deck)$/i.test(lq)) {
+    return makeMechanicIntent(
+      ["draw a card", "draw 2 cards", "draw 3 cards", "draw 4 cards", "draw 5 cards", "draw 6 cards", "draw cards until", "you draw", "draws 3 cards", "draws 4 cards", "each player draws"],
+      'draw cards from deck supporter pokemon'
+    );
+  }
   return null;
 }
 
@@ -423,6 +517,11 @@ function matchMechanic(lq) {
 
 async function classifyQuery(query, archetypes) {
   const lq = query.trim().toLowerCase();
+
+  // ── deterministic mechanic pre-classifier (runs before TCG_SLANG) ──────────
+  const mechanicIntentEarly = matchMechanic(lq);
+  if (mechanicIntentEarly) return mechanicIntentEarly;
+  // ──────────────────────────────────────────────────────────────────────────
 
   if (TCG_SLANG[lq]) {
     return {
@@ -443,18 +542,6 @@ async function classifyQuery(query, archetypes) {
   }
 
   const archetypeMatch = findArchetype(archetypes, lq);
-
-  // ── deterministic mechanic pre-classifier ──────────────────────────────────
-  // For mechanics with exact card-text phrases, bypass Claude entirely.
-  // Claude is unreliable when the prompt is long — this guarantees correctness.
-  const mechanicIntent = matchMechanic(lq);
-  if (mechanicIntent) {
-    if (archetypeMatch && (mechanicIntent.type === 'archetype' || mechanicIntent.type === 'counter')) {
-      mechanicIntent._archetype = archetypeMatch;
-    }
-    return mechanicIntent;
-  }
-  // ──────────────────────────────────────────────────────────────────────────
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -944,7 +1031,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v71:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v72:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
