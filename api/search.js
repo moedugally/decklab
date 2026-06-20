@@ -579,6 +579,18 @@ function matchMechanic(lq) {
       { excludeCardTextContains: NON_METAL }
     );
   }
+  // all status conditions combined
+  const ALL_STATUS_PHRASES = [
+    "is now Poisoned", "is now Burned", "is now Asleep", "is now Paralyzed", "is now Confused",
+    "Poisoned Pokémon", "Burned Pokémon", "Asleep Pokémon", "Paralyzed Pokémon", "Confused Pokémon",
+    "remains Poisoned",
+  ];
+  if (/status.condition|inflict.status|cause.status|apply.status|special.condition/i.test(lq)) {
+    return makeMechanicIntent(
+      ALL_STATUS_PHRASES,
+      'inflict status condition poison burn sleep paralyze confuse opponent pokemon attack ability'
+    );
+  }
   // status conditions
   if (/\bpoison\b|\bpoisoned\b/i.test(lq)) {
     return makeMechanicIntent(
@@ -598,7 +610,7 @@ function matchMechanic(lq) {
       'burn status condition inflict opponent pokemon attack ability'
     );
   }
-  if (/\bconfuse\b|\bconfusion\b/i.test(lq)) {
+  if (/\bconfus/i.test(lq)) {
     return makeMechanicIntent(
       ["is now Confused", "Confused Pokémon"],
       'confuse status condition inflict opponent pokemon attack ability'
@@ -1173,7 +1185,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v88:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v89:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
