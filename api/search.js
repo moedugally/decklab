@@ -512,6 +512,7 @@ function matchMechanic(lq) {
     "attach a Basic Energy card from your hand to", "attach an Energy card from your hand to this Pokémon",
     "attach an Energy card from your hand to your Active",
     "attach up to 2 Basic Energy cards from your discard pile", "attach up to 3 Basic Energy cards from your discard pile",
+    "from your hand to your Benched",
   ];
   const NON_FIRE    = ["attach a Basic Water Energy", "attach a Basic Grass Energy", "attach a Basic Lightning Energy", "attach a Basic Psychic Energy", "attach a Basic Fighting Energy", "attach a Basic Darkness Energy", "attach a Basic Metal Energy", "Basic Water Energy card from your discard", "Basic Grass Energy card from your discard", "Basic Lightning Energy card from your discard", "Basic Psychic Energy card from your discard", "Basic Fighting Energy card from your discard", "Basic Darkness Energy card from your discard", "Basic Metal Energy card from your discard"];
   const NON_WATER   = ["attach a Basic Fire Energy", "attach a Basic Grass Energy", "attach a Basic Lightning Energy", "attach a Basic Psychic Energy", "attach a Basic Fighting Energy", "attach a Basic Darkness Energy", "attach a Basic Metal Energy", "Basic Fire Energy card from your discard", "Basic Grass Energy card from your discard", "Basic Lightning Energy card from your discard", "Basic Psychic Energy card from your discard", "Basic Fighting Energy card from your discard", "Basic Darkness Energy card from your discard", "Basic Metal Energy card from your discard"];
@@ -571,15 +572,46 @@ function matchMechanic(lq) {
       { excludeCardTextContains: NON_DARK }
     );
   }
-  if (/accel.*metal|metal.*accel|metal.*energy.*accel|attach.*metal.*energy/i.test(lq)) {
+  if (/accel.*metal|metal.*accel|metal.*energy.*accel|attach.*metal.*energy|accel.*steel|steel.*accel|steel.*energy/i.test(lq)) {
     return makeMechanicIntent(
       ["attach a Basic Metal Energy card", "search your deck for a Basic Metal Energy card and attach", "attach up to 2 Basic Metal Energy", "Basic Metal Energy card from your discard pile", "Basic Metal Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
       'accelerate metal energy attach from discard pile',
       { excludeCardTextContains: NON_METAL }
     );
   }
+  // status conditions
+  if (/\bpoison\b|\bpoisoned\b/i.test(lq)) {
+    return makeMechanicIntent(
+      ["is now Poisoned", "Poisoned Pokémon", "remains Poisoned"],
+      'poison status condition inflict opponent pokemon attack ability'
+    );
+  }
+  if (/\bparalyze\b|\bparalyz/i.test(lq)) {
+    return makeMechanicIntent(
+      ["is now Paralyzed", "Paralyzed Pokémon"],
+      'paralyze status condition inflict opponent pokemon attack ability'
+    );
+  }
+  if (/\bburn\b|\bburned\b/i.test(lq) && !/fire.*accel|accel.*fire|burn.*deck|deck.*burn/i.test(lq)) {
+    return makeMechanicIntent(
+      ["is now Burned", "Burned Pokémon"],
+      'burn status condition inflict opponent pokemon attack ability'
+    );
+  }
+  if (/\bconfuse\b|\bconfusion\b/i.test(lq)) {
+    return makeMechanicIntent(
+      ["is now Confused", "Confused Pokémon"],
+      'confuse status condition inflict opponent pokemon attack ability'
+    );
+  }
+  if (/\bsleep\b|\basleep\b/i.test(lq)) {
+    return makeMechanicIntent(
+      ["is now Asleep", "Asleep Pokémon"],
+      'sleep status condition inflict opponent pokemon attack ability'
+    );
+  }
   // generic energy acceleration (no type specified)
-  if (/^accel(erate)?(\s+energy)?$|^energy\s+accel/i.test(lq) || (/accel/i.test(lq) && /energy/i.test(lq) && !/fire|water|grass|lightning|psychic|fighting|dark|metal/i.test(lq))) {
+  if (/^accel(erate)?(\s+energy)?$|^energy\s+accel/i.test(lq) || (/accel/i.test(lq) && /energy/i.test(lq) && !/fire|water|grass|lightning|psychic|fighting|dark|metal|steel/i.test(lq))) {
     return makeMechanicIntent(
       GENERIC_ENERGY_PHRASES,
       'energy acceleration attach extra energy each turn'
@@ -1141,7 +1173,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v87:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v88:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
