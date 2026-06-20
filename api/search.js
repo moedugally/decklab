@@ -339,11 +339,38 @@ function matchMechanic(lq) {
       'retreat lock trap opponent active pokemon'
     );
   }
-  // hand disruption / discard from opponent hand
-  if (/hand.disrupt|discard.*opponent.*hand|shuffle.*opponent.*hand|opponent.*discard.*hand|opponent.*hand.*discard|make.*opponent.*discard|making.*opponent.*discard|force.*opponent.*discard|opponent.*lose.*card|opponent.*drop.*card/i.test(lq)) {
+  // discard from opponent's hand specifically (not shuffle)
+  const DISCARD_HAND_PHRASES = [
+    "discard a card from your opponent's hand", "discard a random card from your opponent's hand",
+    "discard random cards from your opponent's hand",
+    "your opponent discards a card", "your opponent discards 2", "your opponent discards 3",
+    "your opponent discards cards from their hand until",
+    "each player discards cards from their hand until",
+    "Discard a card you find there", "Discard all Item cards and Pokémon Tool cards you find there",
+  ];
+  const SHUFFLE_HAND_PHRASES = [
+    "shuffles their hand into their deck and draws", "shuffles their hand and puts it on the bottom",
+    "Each player shuffles their hand into their deck", "shuffle it into your opponent's deck",
+    "shuffles their hand into their deck. Then",
+  ];
+  if (/discard.*opponent.*hand|opponent.*hand.*discard|make.*opponent.*discard|making.*opponent.*discard|force.*opponent.*discard|opponent.*drop.*card/i.test(lq)) {
     return makeMechanicIntent(
-      ["discard a card from your opponent's hand", "your opponent discards a card", "your opponent discards 2", "shuffles their hand into their deck and draws", "your opponent discards cards from their hand until", "shuffles their hand and puts it on the bottom", "each player discards cards from their hand until", "Each player shuffles their hand into their deck"],
-      'hand disruption discard cards from opponent hand'
+      DISCARD_HAND_PHRASES,
+      'discard cards from opponent hand attack ability supporter'
+    );
+  }
+  // shuffle opponent's hand into deck
+  if (/shuffle.*opponent.*hand|opponent.*hand.*shuffle|opponent.*shuffle.*hand/i.test(lq)) {
+    return makeMechanicIntent(
+      SHUFFLE_HAND_PHRASES,
+      'shuffle opponent hand into deck bottom supporter ability'
+    );
+  }
+  // broad hand disruption — both discard and shuffle
+  if (/hand.disrupt|opponent.*lose.*card/i.test(lq)) {
+    return makeMechanicIntent(
+      [...DISCARD_HAND_PHRASES, ...SHUFFLE_HAND_PHRASES],
+      'hand disruption discard shuffle opponent hand cards'
     );
   }
   // move damage counters / transfer damage counters
@@ -1111,7 +1138,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v84:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v85:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
