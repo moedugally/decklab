@@ -77,6 +77,10 @@ const TEST_CASES = [
     query: 'spread damage to bench',
     mustInclude: ['Emolga', 'Ting-Lu'],
   },
+  {
+    query: 'discard opponents hand',
+    mustInclude: ['Xerosic\'s Machinations', 'Liepard', 'Sharpedo', 'Espeon ex', 'Salazzle', 'Sandile', 'Krookodile'],
+  },
 ];
 
 // ============================================================
