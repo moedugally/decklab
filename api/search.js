@@ -588,9 +588,12 @@ function matchMechanic(lq) {
   // damage based on existing damage counters (ambiguous — return both own + opponent phrases)
   if (/damage.*based.*damage.counter|damage.*existing.*damage.counter|damage.*damage.counter.*exist|do.*damage.*existing.*counter/i.test(lq)) {
     return makeMechanicIntent(
-      ["for each damage counter on your opponent's Active", "opponent's Active Pokémon already has any damage counters on it, this attack does",
+      ["damage counters on it", "for each damage counter on your opponent's Active",
+       "opponent's Active Pokémon already has any damage counters on it, this attack does",
        "for each damage counter on this Pokémon", "If this Pokémon has any damage counters on it",
-       "less damage for each damage counter on this Pokémon"],
+       "less damage for each damage counter on this Pokémon",
+       "for each of your Benched Pokémon that has any damage counters on it",
+       "for each damage counter on all of your Benched"],
       'damage based on existing damage counters on pokemon'
     );
   }
@@ -1138,7 +1141,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v85:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v87:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
