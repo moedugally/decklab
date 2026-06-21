@@ -537,14 +537,14 @@ function matchMechanic(lq) {
       { excludeCardTextContains: NON_WATER }
     );
   }
-  if (/accel.*grass|grass.*accel|grass.*energy.*accel|attach.*grass.*energy/i.test(lq)) {
+  if (/accel.*grass|grass.*accel|grass.*energy.*accel|attach.*grass.*energy|accel.*leaf|leaf.*accel|leaf.*energy/i.test(lq)) {
     return makeMechanicIntent(
       ["attach a Basic Grass Energy card", "search your deck for a Basic Grass Energy card and attach", "attach up to 2 Basic Grass Energy", "Basic Grass Energy card from your discard pile", "Basic Grass Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
       'accelerate grass energy attach from discard pile',
       { excludeCardTextContains: NON_GRASS }
     );
   }
-  if (/accel.*lightning|lightning.*accel|lightning.*energy.*accel|attach.*lightning.*energy/i.test(lq)) {
+  if (/accel.*lightning|lightning.*accel|lightning.*energy.*accel|attach.*lightning.*energy|accel.*electric|electric.*accel|electric.*energy.*accel|accel.*thunder|thunder.*accel|thunder.*energy/i.test(lq)) {
     return makeMechanicIntent(
       ["attach a Basic Lightning Energy card", "search your deck for a Basic Lightning Energy card and attach", "attach up to 2 Basic Lightning Energy", "Basic Lightning Energy card from your discard pile", "Basic Lightning Energy cards from your discard pile", ...GENERIC_ENERGY_PHRASES],
       'accelerate lightning energy attach from discard pile',
@@ -623,7 +623,7 @@ function matchMechanic(lq) {
     );
   }
   // generic energy acceleration (no type specified)
-  if (/^accel(erate)?(\s+energy)?$|^energy\s+accel/i.test(lq) || (/accel/i.test(lq) && /energy/i.test(lq) && !/fire|water|grass|lightning|psychic|fighting|dark|metal|steel/i.test(lq))) {
+  if (/^accel(erate)?(\s+energy)?$|^energy\s+accel/i.test(lq) || (/accel/i.test(lq) && /energy/i.test(lq) && !/fire|water|grass|leaf|lightning|electric|thunder|psychic|fighting|dark|metal|steel/i.test(lq))) {
     return makeMechanicIntent(
       GENERIC_ENERGY_PHRASES,
       'energy acceleration attach extra energy each turn'
@@ -1185,7 +1185,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v89:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v90:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
