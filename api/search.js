@@ -1185,7 +1185,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v90:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v91:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
@@ -1512,7 +1512,8 @@ function normalizeCard(c) {
     weaknesses: c.weaknesses || [], retreatCost: c.retreatCost || [],
     legalities: c.legalities || {},
     set: { name: c.setName || c.set?.name || '' },
-    images: { small: c.imageSmall || c.images?.small || '', large: c.imageLarge || c.images?.large || '' }
+    images: { small: c.imageSmall || c.images?.small || '', large: c.imageLarge || c.images?.large || '' },
+    tcgplayer: c.tcgplayer ? { url: c.tcgplayer.url } : null
   };
 }
 
