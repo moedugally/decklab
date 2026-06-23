@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/roadmap", "destination": "/public/roadmap.html" },
     { "source": "/(.*)", "destination": "/public/$1" }
   ],
   "functions": {
