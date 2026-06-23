@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Roadmap — Decklab</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+
+.board{width:100%;max-width:1100px;background:#0A0A0A;border-radius:20px;padding:40px;position:relative}
+
+.header{text-align:center;margin-bottom:48px}
+.logo{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#5A5870;letter-spacing:0.5px;margin-bottom:8px}
+.logo em{color:#E8253A;font-style:normal}
+.logo a{color:inherit;text-decoration:none}
+.title{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:700;color:#F2F1F7;letter-spacing:-1px;margin-bottom:10px}
+.subtitle{font-size:14px;color:#5A5870;max-width:480px;margin:0 auto}
+
+.zones{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;position:relative}
+
+.zones::before{content:'';position:absolute;top:38px;left:16%;right:16%;height:1px;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.15) 0,rgba(255,255,255,0.15) 6px,transparent 6px,transparent 12px);z-index:0}
+
+.zone{position:relative;z-index:1}
+.zone-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.zone-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid}
+.zone-icon svg{width:16px;height:16px}
+.zone-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;letter-spacing:-0.2px}
+.zone-label{font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.8px;font-family:'Space Grotesk',sans-serif;margin-top:1px}
+
+.zone.active .zone-icon{background:rgba(232,37,58,0.12);border-color:#E8253A;color:#E8253A}
+.zone.active .zone-title{color:#FF4D63}
+
+.zone.bench .zone-icon{background:rgba(245,158,11,0.1);border-color:#F59E0B;color:#F59E0B}
+.zone.bench .zone-title{color:#F59E0B}
+
+.zone.deck .zone-icon{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.2);color:#9491A8}
+.zone.deck .zone-title{color:#9491A8}
+
+.card-stack{display:flex;flex-direction:column;gap:10px}
+
+.feature-card{background:#141418;border:0.5px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;transition:transform 0.2s ease, border-color 0.2s ease;cursor:default}
+.feature-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.18)}
+
+.feature-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.zone.active .feature-card::before{background:#E8253A}
+.zone.bench .feature-card::before{background:#F59E0B}
+.zone.deck .feature-card::before{background:rgba(255,255,255,0.15)}
+
+.feature-name{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:#F2F1F7;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.feature-desc{font-size:11px;color:#5A5870;line-height:1.5}
+
+.pulse-dot{width:6px;height:6px;border-radius:50%;background:#4ADE80;flex-shrink:0;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(74,222,128,0.4)}50%{opacity:0.6;box-shadow:0 0 0 4px rgba(74,222,128,0)}}
+
+.deck .feature-card{opacity:0.7}
+.deck .feature-name{color:#9491A8}
+
+.facedown{width:18px;height:18px;border-radius:3px;background:linear-gradient(135deg,#1C1C22,#26262E);border:0.5px solid rgba(255,255,255,0.1);flex-shrink:0;display:inline-block}
+
+.footer-note{text-align:center;margin-top:36px;font-size:11px;color:#333}
+.footer-note a{color:#E8253A;text-decoration:none}
+
+@media(max-width:700px){
+  .zones{grid-template-columns:1fr}
+  .zones::before{display:none}
+  .board{padding:24px 16px}
+  .title{font-size:24px}
+}
+</style>
+</head>
+<body>
+
+<div class="board">
+  <div class="header">
+    <div class="logo"><a href="/">Deck<em>lab</em></a></div>
+    <div class="title">What's next for Decklab</div>
+    <div class="subtitle">Built in public, shipped one feature at a time — here's what's on the board right now.</div>
+  </div>
+
+  <div class="zones">
+
+    <div class="zone active">
+      <div class="zone-header">
+        <div class="zone-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+        </div>
+        <div>
+          <div class="zone-title">Active spot</div>
+          <div class="zone-label">Shipping now</div>
+        </div>
+      </div>
+      <div class="card-stack">
+        <div class="feature-card">
+          <div class="feature-name"><span class="pulse-dot"></span>Search accuracy improvements</div>
+          <div class="feature-desc">Ongoing fixes driven directly by community feedback and thumbs-down reports.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-name"><span class="pulse-dot"></span>Meta deck lookup</div>
+          <div class="feature-desc">Search an archetype like "Dragapult Blaziken" and pull every card from the top 10 Limitless lists.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone bench">
+      <div class="zone-header">
+        <div class="zone-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </div>
+        <div>
+          <div class="zone-title">Bench</div>
+          <div class="zone-label">In progress</div>
+        </div>
+      </div>
+      <div class="card-stack">
+        <div class="feature-card">
+          <div class="feature-name">Counters + techs search</div>
+          <div class="feature-desc">Find the right tech card for any meta matchup, not just raw mechanics.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-name">Buy on TCGPlayer</div>
+          <div class="feature-desc">Every card links straight to its TCGPlayer listing — search, find, buy, no tab switching.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="zone deck">
+      <div class="zone-header">
+        <div class="zone-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/></svg>
+        </div>
+        <div>
+          <div class="zone-title">Deck</div>
+          <div class="zone-label">Planned</div>
+        </div>
+      </div>
+      <div class="card-stack">
+        <div class="feature-card">
+          <div class="feature-name"><span class="facedown"></span>Synergy finder</div>
+          <div class="feature-desc">Tell us your core card, we'll suggest partners that actually work with it.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-name"><span class="facedown"></span>More TCGs beyond Pokémon</div>
+          <div class="feature-desc">Same semantic search, new games.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-name"><span class="facedown"></span>Deck builder integration</div>
+          <div class="feature-desc">Go from search result to full decklist without leaving the page.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-name"><span class="facedown"></span>Mobile app</div>
+          <div class="feature-desc">Search between rounds, no browser tab required.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer-note">Have a feature request? <a href="https://x.com/decklabtcg" target="_blank">Tweet @decklabtcg</a> or <a href="mailto:hello@decklab.gg?subject=Feature%20Request">submit a request</a>.</div>
+</div>
+
+</body>
+</html>
