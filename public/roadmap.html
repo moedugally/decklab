@@ -156,11 +156,9 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .stadium-float .tcg-card{width:75px;flex-shrink:0}
   .stadium-label{display:flex;flex-direction:column;justify-content:center}
 
-  /* Two-column grid: main | narrow side */
-  .mat-grid{grid-template-columns:1fr 82px;gap:6px}
-
-  /* Side column: discard aligned with active spot, pushed left */
-  .mat-side{padding-top:0;margin-top:-70px;gap:10px;align-items:flex-start}
+  /* Single-column: main centered, side pinned absolute to right */
+  .mat-grid{grid-template-columns:1fr;position:relative}
+  .mat-side{position:absolute;right:0;top:0;padding-top:0;margin-top:0;gap:10px;align-items:flex-start}
   .side-box .zone-label-row,.side-box .zone-sub{display:none}
 
   /* All cards 80px */
