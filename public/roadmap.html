@@ -163,16 +163,11 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .mat-side{padding-top:0;flex-direction:row;flex-wrap:wrap;gap:16px;align-items:flex-start}
   .side-box{flex:1;min-width:120px}
 
-  /* Scale bench cards to fit 3 across */
-  .bench-slot{width:calc((100% - 20px) / 3)}
+  /* All cards same size */
+  .bench-slot,.card-slot > div,.deck-slot,.discard-stack,.discard-card,.stadium-float .tcg-card{width:100px}
   .card-slot{display:flex;justify-content:center}
-  .card-slot > *{width:100px}
   .bench-row{gap:10px;flex-wrap:nowrap}
-
-  /* Deck & discard cards */
-  .deck-slot{width:100px}
-  .discard-stack{width:100px;height:140px}
-  .discard-card{width:100px}
+  .discard-stack{height:140px}
   .discard-stack:hover .discard-card:nth-child(1){left:-90px !important}
   .discard-stack:hover .discard-card:nth-child(2){left:-45px !important}
   .discard-stack:hover .discard-card:nth-child(3){left:0 !important}
