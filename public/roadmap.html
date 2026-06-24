@@ -145,6 +145,42 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
 .footer-note{text-align:center;margin-top:14px;font-size:11px;color:#333}
 .footer-note span{color:#E8253A}
 
+@media(max-width:680px){
+  body{align-items:flex-start;padding:16px 12px 24px}
+  .board{padding:16px 14px 16px;overflow:visible}
+  .title{font-size:20px}
+  .header{margin-bottom:14px}
+
+  /* Pull stadium out of absolute flow */
+  .stadium-float{position:static;margin-bottom:14px;justify-content:flex-start;gap:10px}
+  .stadium-float .tcg-card{width:100px;flex-shrink:0}
+  .stadium-label{display:flex;flex-direction:column;justify-content:center}
+
+  /* Single-column main grid */
+  .mat-grid{grid-template-columns:1fr;gap:14px}
+
+  /* Side boxes sit below main as a two-column row */
+  .mat-side{padding-top:0;flex-direction:row;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  .side-box{flex:1;min-width:120px}
+
+  /* Scale bench cards to fit 3 across */
+  .bench-slot{width:calc((100% - 20px) / 3)}
+  .card-slot{display:flex;justify-content:center}
+  .card-slot > *{width:100px}
+  .bench-row{gap:10px;flex-wrap:nowrap}
+
+  /* Deck & discard cards */
+  .deck-slot{width:100px}
+  .discard-stack{width:100px;height:140px}
+  .discard-card{width:100px}
+  .discard-stack:hover .discard-card:nth-child(1){left:-90px !important}
+  .discard-stack:hover .discard-card:nth-child(2){left:-45px !important}
+  .discard-stack:hover .discard-card:nth-child(3){left:0 !important}
+
+  /* Hand fan: scale down proportionally */
+  .hand-row{transform:scale(0.82);transform-origin:center top;height:126px;margin-bottom:-12px}
+}
+
 .popup-overlay{display:none;position:fixed;inset:0;z-index:100;align-items:center;justify-content:center}
 .popup-overlay.open{display:flex}
 .popup-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)}
