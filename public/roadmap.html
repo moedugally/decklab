@@ -159,8 +159,9 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   /* Two-column grid: main | narrow side */
   .mat-grid{grid-template-columns:1fr 115px;gap:10px}
 
-  /* Side column: draw above discard, discard at active spot level */
-  .mat-side{padding-top:0;gap:10px;align-items:center}
+  /* Side column: draw at active label level, discard at bench level */
+  .mat-side{padding-top:0;gap:0;align-items:center}
+  .mat-side .side-box:last-child{margin-top:80px}
   .side-box .zone-label-row,.side-box .zone-sub{display:none}
 
   /* All cards 75px */
