@@ -159,8 +159,8 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   /* Two-column grid: main | narrow side */
   .mat-grid{grid-template-columns:1fr 115px;gap:10px}
 
-  /* Side column: draw on top, discard below — pushed to active spot level */
-  .mat-side{padding-top:110px;gap:12px;align-items:center}
+  /* Side column: draw above discard, discard at active spot level */
+  .mat-side{padding-top:34px;gap:10px;align-items:center}
   .side-box .zone-label-row,.side-box .zone-sub{display:none}
 
   /* All cards 75px */
@@ -168,11 +168,11 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .card-slot{display:flex;justify-content:center}
   .bench-row{gap:8px;flex-wrap:nowrap}
 
-  /* Deck: 90° perpendicular */
-  .deck-slot{width:75px;transform:rotate(90deg);transform-origin:center center}
+  /* Deck: slight tilt */
+  .deck-slot{width:75px;transform:rotate(-4deg);transform-origin:center center}
 
-  /* Discard: 90° perpendicular, tap to fan out upright */
-  .discard-stack{width:75px;height:105px;transform:rotate(90deg);transform-origin:center center}
+  /* Discard: slight tilt, tap to fan */
+  .discard-stack{width:75px;height:105px;transform:rotate(3deg);transform-origin:center center}
   .discard-stack.expanded{transform:rotate(0deg)}
 
   /* Suppress hover on mobile — only tap/expanded works */
