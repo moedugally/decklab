@@ -229,7 +229,7 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
         </div>
         <div class="card-art">
           <div class="icon-badge">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2h8"/><path d="M9 2v2.8A6 6 0 0 0 12 20a6 6 0 0 0 3-11.2V2"/><path d="M6.5 10h11"/><path d="M10 14h.01M14 14h.01"/></svg>
           </div>
         </div>
         <div class="card-bottom">
@@ -297,7 +297,7 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
                 <div class="card-top"><div class="card-stage">Bench 2</div></div>
                 <div class="card-art">
                   <div class="icon-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2 4 9h5l-1 6 6-9h-5l1-4z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   </div>
                 </div>
                 <div class="card-bottom">
@@ -311,7 +311,7 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
                 <div class="card-top"><div class="card-stage">Bench 3</div></div>
                 <div class="card-art">
                   <div class="icon-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h6M9 12h6M9 18h6M5 6h.01M5 12h.01M5 18h.01"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
                   </div>
                 </div>
                 <div class="card-bottom">
@@ -342,7 +342,7 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
           <a href="#" class="deck-slot" onclick="openPopup(event)">
             <div class="tcg-card card-deck">
               <div class="plus-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-              <div class="card-top"><div class="card-stage">Draw</div></div>
+              <div class="card-top"><div class="card-stage">Deck</div></div>
               <div class="card-art">
                 <div class="icon-badge">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -416,7 +416,7 @@ function buildDiscardStack() {
     div.innerHTML = `
       <div class="tcg-card card-discard">
         <div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
-        <div class="card-top"><div class="card-stage">Played</div></div>
+        <div class="card-top"><div class="card-stage">Discard</div></div>
         <div class="card-art"><div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.icon}</svg></div></div>
         <div class="card-bottom">
           <div class="card-name">${c.name}</div>
