@@ -195,6 +195,8 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   /* Hand fan: scale down */
   .hand-row{transform:none;height:120px;margin-bottom:0}
   .hand-card{width:80px}
+  .slot-row{justify-content:center}
+  .bench-row{justify-content:center}
 }
 
 .popup-overlay{display:none;position:fixed;inset:0;z-index:100;align-items:center;justify-content:center}
@@ -448,7 +450,8 @@ function buildHandRow() {
     const x = startX + i * spread;
     const div = document.createElement('div');
     div.className = 'hand-card';
-    div.style.left = `calc(50% + ${x}px - 59px)`;
+    const halfCard = window.innerWidth <= 680 ? 40 : 59;
+    div.style.left = `calc(50% + ${x}px - ${halfCard}px)`;
     div.style.transform = `rotate(${angle}deg)`;
     div.style.zIndex = i;
     div.innerHTML = `
