@@ -156,16 +156,23 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .stadium-float .tcg-card{width:100px;flex-shrink:0}
   .stadium-label{display:flex;flex-direction:column;justify-content:center}
 
-  /* Keep side column on the right, narrower */
+  /* Side column right, aligned with active spot */
   .mat-grid{grid-template-columns:1fr 108px;gap:10px}
-  .mat-side{padding-top:0;gap:14px}
-  .side-box{align-items:center}
+  .mat-side{padding-top:34px;gap:14px;align-items:center}
+
+  /* Hide text labels — just show the tucked cards */
+  .side-box .zone-label-row,.side-box .zone-sub{display:none}
 
   /* All cards same size */
   .bench-slot,.card-slot > div,.deck-slot,.discard-stack,.discard-card,.stadium-float .tcg-card{width:100px}
   .card-slot{display:flex;justify-content:center}
   .bench-row{gap:10px;flex-wrap:nowrap}
   .discard-stack{height:140px}
+
+  /* Tuck and rotate like real card piles */
+  .deck-slot{transform:rotate(-6deg);transform-origin:bottom center}
+  .discard-stack{transform:rotate(4deg);transform-origin:bottom center}
+  .discard-stack.expanded{transform:rotate(0deg)}
   .discard-stack:hover .discard-card:nth-child(1){transform:none !important;left:0 !important}
   .discard-stack:hover .discard-card:nth-child(2){transform:none !important;left:0 !important}
   .discard-stack:hover .discard-card:nth-child(3){transform:none !important;left:0 !important}
