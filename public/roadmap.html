@@ -156,12 +156,10 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .stadium-float .tcg-card{width:100px;flex-shrink:0}
   .stadium-label{display:flex;flex-direction:column;justify-content:center}
 
-  /* Single-column main grid */
-  .mat-grid{grid-template-columns:1fr;gap:14px}
-
-  /* Side boxes sit below main as a two-column row */
-  .mat-side{padding-top:0;flex-direction:row;flex-wrap:wrap;gap:16px;align-items:flex-start}
-  .side-box{flex:1;min-width:120px}
+  /* Keep side column on the right, narrower */
+  .mat-grid{grid-template-columns:1fr 108px;gap:10px}
+  .mat-side{padding-top:0;gap:14px}
+  .side-box{align-items:center}
 
   /* All cards same size */
   .bench-slot,.card-slot > div,.deck-slot,.discard-stack,.discard-card,.stadium-float .tcg-card{width:100px}
