@@ -8,6 +8,7 @@
   ],
   "functions": {
     "api/search.js":      { "maxDuration": 30 },
-    "api/build-stats.js": { "maxDuration": 300 }
+    "api/build-stats.js": { "maxDuration": 300 },
+    "api/tcglink.js":     { "maxDuration": 10 }
   }
 }

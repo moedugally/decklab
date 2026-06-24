@@ -415,6 +415,19 @@ function setType(el,t){type=t;document.querySelectorAll('.tc').forEach(c=>c.clas
 function useSugg(el){document.getElementById('q').value=el.textContent;runSearch()}
 function appStatus(msg,loading){const el=document.getElementById('app-status');el.innerHTML=loading?`<div class="spin"></div><span>${msg}</span>`:msg}
 function errMsg(msg){document.getElementById('err-zone').innerHTML=msg?`<div class="err-bar"><i class="ti ti-alert-circle"></i> ${msg}</div>`:''}
+async function openTcgLink(e,cardId){
+  const btn=e.currentTarget;
+  const span=btn.querySelector('span');
+  const orig=span.textContent;
+  span.textContent='Loading…';btn.disabled=true;
+  try{
+    const r=await fetch('/api/tcglink?id='+encodeURIComponent(cardId));
+    const d=await r.json();
+    if(d.url) window.open(d.url,'_blank','noopener');
+    else span.textContent='Not available';
+  }catch{span.textContent='Error';}
+  finally{setTimeout(()=>{span.textContent=orig;btn.disabled=false;},1500);}
+}
 function closeDetail(){document.getElementById('detail-col').classList.remove('open');document.querySelectorAll('.ct').forEach(t=>t.classList.remove('active'))}
 
 async function fetchCards(q){
@@ -469,7 +482,7 @@ function openDetail(id){
   if(c.abilities?.length){h+=`<div class="sec">Abilities</div>`;c.abilities.forEach(a=>{h+=`<div class="ab"><div class="at">${a.type}</div><div class="an">${a.name}</div><div class="ax">${a.text}</div></div>`})}
   if(c.attacks?.length){h+=`<div class="sec">Attacks</div>`;c.attacks.forEach(a=>{h+=`<div class="atk"><div class="ak-top"><span class="ak-name">${a.name}</span><span class="ak-dmg">${a.damage||''}</span></div><div class="ak-cost">${(a.cost||[]).join(' · ')||'No cost'}</div>${a.text?`<div class="ak-text">${a.text}</div>`:''}</div>`})}
   if(c.rules?.length){h+=`<div class="sec">Rules</div>`;c.rules.forEach(r=>{h+=`<div class="atk"><div class="ak-text">${r}</div></div>`})}
-  if(c.id){const proxyUrl='https://prices.pokemontcg.io/tcgplayer/'+c.id;const aff='https://partner.tcgplayer.com/c/7426290/1780961/21018?u='+encodeURIComponent(proxyUrl);h+=`<div class="tcg-buy-wrap"><a href="${aff}" target="_blank" rel="noopener" class="tcg-buy-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Buy on TCGPlayer</a><div class="tcg-disclosure">Affiliate link — we may earn from qualifying purchases.</div></div>`;}
+  if(c.id){h+=`<div class="tcg-buy-wrap"><button class="tcg-buy-btn" onclick="openTcgLink(event,'${c.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span>Buy on TCGPlayer</span></button><div class="tcg-disclosure">Affiliate link — we may earn from qualifying purchases.</div></div>`;}
   h+=`</div>`;
   document.getElementById('detail-inner').innerHTML=h;
   document.getElementById('detail-col').classList.add('open');
