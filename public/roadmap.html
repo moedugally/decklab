@@ -9,7 +9,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px 16px}
 
-.page{width:100%;max-width:980px}
+.page{width:100%;max-width:1080px}
 .header{text-align:center;margin-bottom:18px}
 .logo{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#5A5870;letter-spacing:0.5px;margin-bottom:8px}
 .logo em{color:#E8253A;font-style:normal}
@@ -20,7 +20,7 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   background:radial-gradient(ellipse at 50% 0%, #14181A 0%, #0C0F10 60%, #08090A 100%);
   border:1px solid rgba(255,255,255,0.06);
   border-radius:20px;
-  padding:24px 28px 20px;
+  padding:42px 28px 20px;
   position:relative;
   overflow:hidden;
 }
@@ -31,25 +31,51 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   pointer-events:none;
 }
 
-.zone-row{position:relative;z-index:1;margin-bottom:18px}
+.mat-grid{display:grid;grid-template-columns:1fr 140px;gap:24px;position:relative;z-index:1}
+.mat-main{display:flex;flex-direction:column}
+.mat-side{display:flex;flex-direction:column;gap:18px;padding-top:170px}
+.side-box{display:flex;flex-direction:column;align-items:flex-start}
+
+.stadium-float{position:absolute;top:26px;right:152px;display:flex;align-items:center;gap:10px;z-index:5}
+.stadium-float .tcg-card{width:118px;flex-shrink:0}
+.stadium-label{display:flex;flex-direction:column;white-space:nowrap}
+.stadium-label .zone-sub{margin-top:4px}
+
+.zone-row{margin-bottom:18px}
 .zone-row:last-child{margin-bottom:0;padding-bottom:6px}
 .zone-label-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .zone-tag{font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:5px}
 .zone-sub{font-size:11px;color:#3A3A3A;font-family:'Inter',sans-serif}
 
 .tag-active{background:rgba(232,37,58,0.15);color:#FF4D63}
+.tag-stadium{background:rgba(168,85,247,0.13);color:#C084FC}
 .tag-bench{background:rgba(245,158,11,0.13);color:#F59E0B}
+.tag-discard{background:rgba(90,87,112,0.18);color:#9491A8}
 .tag-hand{background:rgba(255,255,255,0.07);color:#9491A8}
+.tag-deck{background:rgba(74,222,128,0.1);color:#4ADE80}
 
-.active-row{display:flex;justify-content:center}
-.active-slot{width:118px}
+.top-row{display:flex;justify-content:center;gap:40px;align-items:flex-start}
+.top-row .zone-block{flex:1;display:flex;flex-direction:column;align-items:center;max-width:260px}
+
+.slot-row{display:flex;justify-content:center}
+.card-slot{width:118px}
 
 .bench-row{display:flex;justify-content:center;gap:16px;flex-wrap:wrap}
 .bench-slot{width:118px}
 
+.discard-stack{position:relative;width:118px;height:165px;z-index:20}
+.discard-card{width:118px;position:absolute;left:0;top:0;transition:transform 0.25s ease, left 0.25s ease}
+.discard-stack:hover .discard-card:nth-child(1){transform:rotate(-5deg) translateY(-2px) !important;left:-110px !important;z-index:1}
+.discard-stack:hover .discard-card:nth-child(2){transform:rotate(-2deg) translateY(-8px) !important;left:-55px !important;z-index:2}
+.discard-stack:hover .discard-card:nth-child(3){transform:rotate(0deg) translateY(0px) !important;left:0px !important;z-index:3}
+.discard-card:hover{z-index:50 !important;transform:scale(1.08) translateY(-12px) !important}
+
 .hand-row{display:flex;justify-content:center;gap:0;position:relative;height:150px;padding-top:8px;padding-bottom:8px}
 .hand-card{width:118px;position:absolute;transition:transform 0.2s ease,z-index 0s;cursor:default}
 .hand-card:hover{transform:translateY(-14px) scale(1.04) !important;z-index:50 !important}
+
+.deck-row{display:flex;justify-content:center}
+.deck-slot{width:118px;cursor:pointer;text-decoration:none;display:block}
 
 .tcg-card{
   border-radius:11px;
@@ -61,45 +87,60 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
 }
 
 .card-active{background:linear-gradient(160deg,#1a1410 0%,#120d0a 100%);border-color:#E8253A;box-shadow:0 0 0 1px rgba(232,37,58,0.3), 0 8px 28px rgba(232,37,58,0.18)}
+.card-stadium{background:linear-gradient(160deg,#1a1424 0%,#100d18 100%);border-color:#A855F7;box-shadow:0 0 0 1px rgba(168,85,247,0.3), 0 8px 28px rgba(168,85,247,0.16)}
 .card-bench{background:linear-gradient(160deg,#1a1610 0%,#120f0a 100%);border-color:#F59E0B;box-shadow:0 6px 18px rgba(0,0,0,0.4)}
+.card-discard{background:linear-gradient(160deg,#161618 0%,#0d0d0f 100%);border-color:rgba(255,255,255,0.14);box-shadow:0 6px 16px rgba(0,0,0,0.5)}
 .card-hand{background:linear-gradient(160deg,#16161a 0%,#0d0d10 100%);border-color:rgba(255,255,255,0.18);box-shadow:0 6px 16px rgba(0,0,0,0.5)}
+.card-deck{background:linear-gradient(160deg,#0f1a14 0%,#0a120d 100%);border-color:#4ADE80;box-shadow:0 0 0 1px rgba(74,222,128,0.25), 0 6px 18px rgba(74,222,128,0.1);transition:transform 0.2s ease, box-shadow 0.2s ease}
+.deck-slot:hover .card-deck{transform:translateY(-4px);box-shadow:0 0 0 1px rgba(74,222,128,0.4), 0 10px 22px rgba(74,222,128,0.2)}
 
 .card-top{display:flex;align-items:center;justify-content:space-between;padding:8px 9px 6px;border-bottom:1px solid rgba(255,255,255,0.08)}
 .card-stage{font-size:7px;font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:0.4px;text-transform:uppercase}
 .card-active .card-stage{color:#FF4D63}
+.card-stadium .card-stage{color:#C084FC}
 .card-bench .card-stage{color:#F59E0B}
+.card-discard .card-stage{color:#6A6878}
 .card-hand .card-stage{color:#6A6878}
+.card-deck .card-stage{color:#4ADE80}
 
 .card-hp{font-size:9px;font-family:'Space Grotesk',sans-serif;font-weight:700;color:#F2F1F7;display:flex;align-items:center;gap:2px}
 .card-hp .hp-label{font-size:6px;color:#5A5870;font-weight:500}
 
 .card-art{flex:1;display:flex;align-items:center;justify-content:center;position:relative;padding:10px}
 .card-active .card-art{background:radial-gradient(circle,rgba(232,37,58,0.08),transparent 70%)}
+.card-stadium .card-art{background:radial-gradient(circle,rgba(168,85,247,0.08),transparent 70%)}
 .card-bench .card-art{background:radial-gradient(circle,rgba(245,158,11,0.07),transparent 70%)}
+.card-deck .card-art{background:radial-gradient(circle,rgba(74,222,128,0.08),transparent 70%)}
 
 .icon-badge{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;border:1.5px solid}
 .card-active .icon-badge{background:rgba(232,37,58,0.12);border-color:#E8253A;color:#FF4D63}
+.card-stadium .icon-badge{background:rgba(168,85,247,0.12);border-color:#A855F7;color:#C084FC}
 .card-bench .icon-badge{background:rgba(245,158,11,0.1);border-color:#F59E0B;color:#F59E0B}
+.card-discard .icon-badge{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.12);color:#6A6878}
 .card-hand .icon-badge{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.15);color:#7A7888}
+.card-deck .icon-badge{background:rgba(74,222,128,0.1);border-color:#4ADE80;color:#4ADE80}
 .icon-badge svg{width:18px;height:18px}
 
-.active-slot .icon-badge{width:38px;height:38px}
-.active-slot .icon-badge svg{width:18px;height:18px}
-
 .card-bottom{padding:7px 9px 9px;border-top:1px solid rgba(255,255,255,0.06)}
-.card-name{font-family:'Space Grotesk',sans-serif;font-weight:700;color:#F2F1F7;line-height:1.2;margin-bottom:3px}
-.active-slot .card-name{font-size:11px}
-.bench-slot .card-name{font-size:11px}
+.card-name{font-family:'Space Grotesk',sans-serif;font-weight:700;color:#F2F1F7;line-height:1.2;margin-bottom:3px;font-size:11px}
+.card-discard .card-name{color:#9491A8}
 .hand-card .card-name{font-size:10px}
 
 .card-desc{font-size:8px;color:#5A5870;line-height:1.4}
-.active-slot .card-desc{font-size:8px}
 
 .pulse{display:inline-block;width:5px;height:5px;border-radius:50%;background:#4ADE80;margin-right:4px;animation:p 2s ease-in-out infinite}
+.pulse-purple{background:#C084FC}
 @keyframes p{0%,100%{opacity:1}50%{opacity:0.4}}
 
 .energy-pip{position:absolute;top:8px;right:9px;width:14px;height:14px;border-radius:50%;background:rgba(232,37,58,0.9);display:flex;align-items:center;justify-content:center}
 .energy-pip svg{width:8px;height:8px;color:#fff}
+.energy-pip-purple{background:rgba(168,85,247,0.9)}
+
+.checkmark{position:absolute;top:8px;right:9px;width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center}
+.checkmark svg{width:8px;height:8px;color:#9491A8}
+
+.plus-icon{position:absolute;top:8px;right:9px;width:14px;height:14px;border-radius:50%;background:rgba(74,222,128,0.9);display:flex;align-items:center;justify-content:center}
+.plus-icon svg{width:8px;height:8px;color:#06180e}
 
 .footer-note{text-align:center;margin-top:14px;font-size:11px;color:#333}
 .footer-note span{color:#E8253A}
@@ -116,103 +157,189 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
 
   <div class="board">
 
-    <div class="zone-row">
-      <div class="zone-label-row">
-        <div class="zone-tag tag-active">Active spot</div>
-        <div class="zone-sub">Shipping right now</div>
-      </div>
-      <div class="active-row">
-        <div class="active-slot">
-          <div class="tcg-card card-active">
-<div class="card-top">
-              <div class="card-stage">Live</div>
-              <div class="card-hp"><span class="hp-label">UP</span> NOW</div>
-            </div>
-            <div class="card-art">
-              <div class="icon-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              </div>
-            </div>
-            <div class="card-bottom">
-              <div class="card-name"><span class="pulse"></span>Search accuracy</div>
-              <div class="card-desc">Ongoing fixes driven by real community feedback &amp; thumbs-down reports.</div>
-            </div>
+    <div class="stadium-float" id="stadiumFloat">
+      <div class="tcg-card card-stadium">
+        <div class="energy-pip energy-pip-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></div>
+        <div class="card-top">
+          <div class="card-stage">Stadium</div>
+        </div>
+        <div class="card-art">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg>
           </div>
         </div>
+        <div class="card-bottom">
+          <div class="card-name"><span class="pulse pulse-purple"></span>Bug fixes</div>
+          <div class="card-desc">Squashed continuously across the whole board.</div>
+        </div>
+      </div>
+      <div class="stadium-label">
+        <div class="zone-tag tag-stadium">Stadium</div>
+        <div class="zone-sub">Ongoing</div>
       </div>
     </div>
 
-    <div class="zone-row">
-      <div class="zone-label-row">
-        <div class="zone-tag tag-bench">Bench</div>
-        <div class="zone-sub">In progress</div>
-      </div>
-      <div class="bench-row">
-        <div class="bench-slot">
-          <div class="tcg-card card-bench">
-            <div class="card-top">
-              <div class="card-stage">Bench 1</div>
-            </div>
-            <div class="card-art">
-              <div class="icon-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="4" height="9"/><rect x="10" y="6" width="4" height="14"/><rect x="17" y="2" width="4" height="18"/></svg>
-              </div>
-            </div>
-            <div class="card-bottom">
-              <div class="card-name">Meta deck lookup</div>
-              <div class="card-desc">Search an archetype, pull cards from the top 10 Limitless lists.</div>
-            </div>
-          </div>
-        </div>
-        <div class="bench-slot">
-          <div class="tcg-card card-bench">
-            <div class="card-top">
-              <div class="card-stage">Bench 2</div>
-            </div>
-            <div class="card-art">
-              <div class="icon-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2 4 9h5l-1 6 6-9h-5l1-4z"/></svg>
-              </div>
-            </div>
-            <div class="card-bottom">
-              <div class="card-name">Counters + techs</div>
-              <div class="card-desc">Find the right tech for any meta matchup, not just raw mechanics.</div>
-            </div>
-          </div>
-        </div>
-        <div class="bench-slot">
-          <div class="tcg-card card-bench">
-            <div class="card-top">
-              <div class="card-stage">Bench 3</div>
-            </div>
-            <div class="card-art">
-              <div class="icon-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h6M9 12h6M9 18h6M5 6h.01M5 12h.01M5 18h.01"/></svg>
-              </div>
-            </div>
-            <div class="card-bottom">
-              <div class="card-name">Buy on TCGPlayer</div>
-              <div class="card-desc">Every card links to its listing — search, find, buy, no tab switching.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="mat-grid">
+      <div class="mat-main">
 
-    <div class="zone-row">
-      <div class="zone-label-row">
-        <div class="zone-tag tag-hand">Hand</div>
-        <div class="zone-sub">Planned, not yet built</div>
-      </div>
-      <div class="hand-row" id="handRow"></div>
-    </div>
+        <div class="zone-row">
+          <div class="zone-label-row">
+            <div class="zone-tag tag-active">Active spot</div>
+            <div class="zone-sub">Shipping right now</div>
+          </div>
+          <div class="slot-row">
+            <div class="card-slot">
+              <div class="tcg-card card-active">
+                <div class="energy-pip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></div>
+                <div class="card-top">
+                  <div class="card-stage">Live</div>
+                  <div class="card-hp"><span class="hp-label">UP</span> NOW</div>
+                </div>
+                <div class="card-art">
+                  <div class="icon-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  </div>
+                </div>
+                <div class="card-bottom">
+                  <div class="card-name"><span class="pulse"></span>Search accuracy</div>
+                  <div class="card-desc">Ongoing fixes driven by real community feedback &amp; thumbs-down reports.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
+        <div class="zone-row">
+          <div class="zone-label-row">
+            <div class="zone-tag tag-bench">Bench</div>
+            <div class="zone-sub">In progress</div>
+          </div>
+          <div class="bench-row">
+            <div class="bench-slot">
+              <div class="tcg-card card-bench">
+                <div class="card-top"><div class="card-stage">Bench 1</div></div>
+                <div class="card-art">
+                  <div class="icon-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="4" height="9"/><rect x="10" y="6" width="4" height="14"/><rect x="17" y="2" width="4" height="18"/></svg>
+                  </div>
+                </div>
+                <div class="card-bottom">
+                  <div class="card-name">Meta deck lookup</div>
+                  <div class="card-desc">Search an archetype, pull cards from the top 10 Limitless lists.</div>
+                </div>
+              </div>
+            </div>
+            <div class="bench-slot">
+              <div class="tcg-card card-bench">
+                <div class="card-top"><div class="card-stage">Bench 2</div></div>
+                <div class="card-art">
+                  <div class="icon-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2 4 9h5l-1 6 6-9h-5l1-4z"/></svg>
+                  </div>
+                </div>
+                <div class="card-bottom">
+                  <div class="card-name">Counters + techs</div>
+                  <div class="card-desc">Find the right tech for any meta matchup, not just raw mechanics.</div>
+                </div>
+              </div>
+            </div>
+            <div class="bench-slot">
+              <div class="tcg-card card-bench">
+                <div class="card-top"><div class="card-stage">Bench 3</div></div>
+                <div class="card-art">
+                  <div class="icon-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h6M9 12h6M9 18h6M5 6h.01M5 12h.01M5 18h.01"/></svg>
+                  </div>
+                </div>
+                <div class="card-bottom">
+                  <div class="card-name">Buy on TCGPlayer</div>
+                  <div class="card-desc">Every card links to its listing — search, find, buy, no tab switching.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="zone-row">
+          <div class="zone-label-row">
+            <div class="zone-tag tag-hand">Hand</div>
+            <div class="zone-sub">Planned, not yet built</div>
+          </div>
+          <div class="hand-row" id="handRow"></div>
+        </div>
+
+      </div>
+
+      <div class="mat-side">
+        <div class="side-box">
+          <div class="zone-label-row">
+            <div class="zone-tag tag-deck">Deck</div>
+          </div>
+          <div class="zone-sub" style="margin-bottom:10px">What should we do next?</div>
+          <a href="https://twitter.com/decklabtcg" target="_blank" class="deck-slot">
+            <div class="tcg-card card-deck">
+              <div class="plus-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+              <div class="card-top"><div class="card-stage">Draw</div></div>
+              <div class="card-art">
+                <div class="icon-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </div>
+              </div>
+              <div class="card-bottom">
+                <div class="card-name">Submit a request</div>
+                <div class="card-desc">Click here and tell us what you want to see next.</div>
+              </div>
+            </div>
+          </a>
+        </div>
+
+        <div class="side-box">
+          <div class="zone-label-row">
+            <div class="zone-tag tag-discard">Discard</div>
+          </div>
+          <div class="zone-sub" style="margin-bottom:10px">Already shipped</div>
+          <div class="discard-stack" id="discardRow"></div>
+        </div>
+      </div>
+
+    </div>
   </div>
 
-  <div class="footer-note">Have a feature request? <a href="https://x.com/decklabtcg" target="_blank" style="color:#E8253A;text-decoration:none">Tweet @decklabtcg</a> or <a href="mailto:hello@decklab.gg?subject=Feature%20Request" style="color:#E8253A;text-decoration:none">submit a request</a>.</div>
 </div>
 
 <script>
+const discardCards = [
+  { name: 'Card database', desc: 'Built a robust, data-rich database covering every Standard-legal card.', icon: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>' },
+  { name: 'LCS Pre-Beta', desc: 'Brought local card shops in early to test and shape the product.', icon: '<path d="M3 9l9-7 9 7"/><path d="M9 22V12h6v10"/><path d="M21 22V9"/><path d="M3 22V9"/>' },
+  { name: 'Public launch', desc: 'Decklab went live for the whole community to use, free.', icon: '<path d="M14.5 9.5 9 15l-3-3"/><circle cx="12" cy="12" r="10"/>' },
+];
+
+function buildDiscardStack() {
+  const row = document.getElementById('discardRow');
+  discardCards.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'discard-card';
+    div.style.top = `${i * 3}px`;
+    div.style.left = `${i * 2}px`;
+    div.style.transform = `rotate(${(i - 1) * 1.5}deg)`;
+    div.style.zIndex = i;
+    div.innerHTML = `
+      <div class="tcg-card card-discard">
+        <div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+        <div class="card-top"><div class="card-stage">Played</div></div>
+        <div class="card-art"><div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.icon}</svg></div></div>
+        <div class="card-bottom">
+          <div class="card-name">${c.name}</div>
+          <div class="card-desc">${c.desc}</div>
+        </div>
+      </div>
+    `;
+    row.appendChild(div);
+  });
+}
+
+buildDiscardStack();
+
 const handCards = [
   { name: 'Synergy finder', desc: 'Suggests partner cards that actually work with your core pick.', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
   { name: 'More TCGs', desc: 'Same semantic search, new games beyond Pokémon.', icon: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>' },
@@ -220,31 +347,33 @@ const handCards = [
   { name: 'Mobile app', desc: 'Search between rounds, no browser tab required.', icon: '<rect x="6" y="2" width="12" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>' },
 ];
 
-const row = document.getElementById('handRow');
-const n = handCards.length;
-const spread = 64;
-const startX = -(spread * (n - 1)) / 2;
-
-handCards.forEach((c, i) => {
-  const angle = (i - (n - 1) / 2) * 5;
-  const x = startX + i * spread;
-  const div = document.createElement('div');
-  div.className = 'hand-card';
-  div.style.left = `calc(50% + ${x}px - 59px)`;
-  div.style.transform = `rotate(${angle}deg)`;
-  div.style.zIndex = i;
-  div.innerHTML = `
-    <div class="tcg-card card-hand">
-      <div class="card-top"><div class="card-stage">In hand</div></div>
-      <div class="card-art"><div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.icon}</svg></div></div>
-      <div class="card-bottom">
-        <div class="card-name">${c.name}</div>
-        <div class="card-desc">${c.desc}</div>
+function buildHandRow() {
+  const row = document.getElementById('handRow');
+  const n = handCards.length;
+  const spread = 64;
+  const startX = -(spread * (n - 1)) / 2;
+  handCards.forEach((c, i) => {
+    const angle = (i - (n - 1) / 2) * 5;
+    const x = startX + i * spread;
+    const div = document.createElement('div');
+    div.className = 'hand-card';
+    div.style.left = `calc(50% + ${x}px - 59px)`;
+    div.style.transform = `rotate(${angle}deg)`;
+    div.style.zIndex = i;
+    div.innerHTML = `
+      <div class="tcg-card card-hand">
+        <div class="card-top"><div class="card-stage">In hand</div></div>
+        <div class="card-art"><div class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.icon}</svg></div></div>
+        <div class="card-bottom">
+          <div class="card-name">${c.name}</div>
+          <div class="card-desc">${c.desc}</div>
+        </div>
       </div>
-    </div>
-  `;
-  row.appendChild(div);
-});
+    `;
+    row.appendChild(div);
+  });
+}
+buildHandRow();
 </script>
 </body>
 </html>
