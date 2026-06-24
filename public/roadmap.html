@@ -157,23 +157,21 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .stadium-label{display:flex;flex-direction:column;justify-content:center}
 
   /* Two-column grid: main | narrow side */
-  .mat-grid{grid-template-columns:1fr 96px;gap:10px}
+  .mat-grid{grid-template-columns:1fr 82px;gap:6px}
 
   /* Side column: discard aligned with active spot, pushed left */
   .mat-side{padding-top:0;margin-top:-70px;gap:10px;align-items:flex-start}
   .side-box .zone-label-row,.side-box .zone-sub{display:none}
 
-  /* Bench cards fill left column naturally */
-  .bench-slot{flex:1}
+  /* All cards 80px */
+  .bench-slot,.card-slot > div,.deck-slot,.discard-card,.stadium-float .tcg-card{width:80px}
   .card-slot{display:flex;justify-content:center}
-  .card-slot > div{width:86px}
-  .stadium-float .tcg-card{width:86px}
-  .bench-row{gap:8px;flex-wrap:nowrap}
+  .bench-row{gap:6px;flex-wrap:nowrap}
 
-  /* Deck + discard: 86px */
-  .deck-slot{width:86px;transform:none}
-  .discard-stack{width:86px;height:120px;transform:none}
-  .discard-card{width:86px}
+  /* Deck + discard */
+  .deck-slot{transform:none}
+  .discard-stack{width:80px;height:112px;transform:none}
+  .discard-card{width:80px}
   .discard-stack.expanded{transform:none}
 
   /* Smaller text to fit cards */
