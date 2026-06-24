@@ -157,23 +157,28 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .stadium-label{display:flex;flex-direction:column;justify-content:center}
 
   /* Two-column grid: main | narrow side */
-  .mat-grid{grid-template-columns:1fr 115px;gap:10px}
+  .mat-grid{grid-template-columns:1fr 96px;gap:10px}
 
-  /* Side column: discard aligned with active spot card */
-  .mat-side{padding-top:0;margin-top:-70px;gap:10px;align-items:center}
+  /* Side column: discard aligned with active spot, pushed left */
+  .mat-side{padding-top:0;margin-top:-70px;gap:10px;align-items:flex-start}
   .side-box .zone-label-row,.side-box .zone-sub{display:none}
 
-  /* All cards 75px */
-  .bench-slot,.card-slot > div,.discard-card,.stadium-float .tcg-card{width:75px}
+  /* Bench cards fill left column naturally */
+  .bench-slot{flex:1}
   .card-slot{display:flex;justify-content:center}
+  .card-slot > div{width:86px}
+  .stadium-float .tcg-card{width:86px}
   .bench-row{gap:8px;flex-wrap:nowrap}
 
-  /* Deck: straight */
-  .deck-slot{width:75px;transform:none}
-
-  /* Discard: straight, tap to fan */
-  .discard-stack{width:75px;height:105px;transform:none}
+  /* Deck + discard: 86px */
+  .deck-slot{width:86px;transform:none}
+  .discard-stack{width:86px;height:120px;transform:none}
+  .discard-card{width:86px}
   .discard-stack.expanded{transform:none}
+
+  /* Smaller text to fit cards */
+  .tcg-card .card-name{font-size:9px}
+  .tcg-card .card-desc{font-size:7px}
 
   /* Suppress hover on mobile — only tap/expanded works */
   .discard-stack:hover .discard-card:nth-child(1){transform:rotate(0deg) !important;left:0 !important}
