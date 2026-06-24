@@ -144,6 +144,20 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
 
 .footer-note{text-align:center;margin-top:14px;font-size:11px;color:#333}
 .footer-note span{color:#E8253A}
+
+.popup-overlay{display:none;position:fixed;inset:0;z-index:100;align-items:center;justify-content:center}
+.popup-overlay.open{display:flex}
+.popup-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)}
+.popup{position:relative;z-index:1;background:#141418;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:24px 20px 20px;width:280px;text-align:center}
+.popup-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:#F2F1F7;margin-bottom:6px}
+.popup-sub{font-size:12px;color:#5A5870;margin-bottom:18px;line-height:1.5}
+.popup-btns{display:flex;flex-direction:column;gap:10px}
+.popup-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600;font-family:'Space Grotesk',sans-serif;text-decoration:none;transition:opacity 0.15s}
+.popup-btn:hover{opacity:0.85}
+.popup-btn-x{background:#000;color:#fff;border:1px solid rgba(255,255,255,0.15)}
+.popup-btn-email{background:#1A5CE5;color:#fff}
+.popup-close{position:absolute;top:10px;right:12px;background:none;border:none;color:#5A5870;font-size:18px;cursor:pointer;line-height:1;padding:2px 6px}
+.popup-close:hover{color:#F2F1F7}
 </style>
 </head>
 <body>
@@ -274,7 +288,7 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
             <div class="zone-tag tag-deck">Deck</div>
           </div>
           <div class="zone-sub" style="margin-bottom:10px">What should we do next?</div>
-          <a href="https://twitter.com/decklabtcg" target="_blank" class="deck-slot">
+          <a href="#" class="deck-slot" onclick="openPopup(event)">
             <div class="tcg-card card-deck">
               <div class="plus-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
               <div class="card-top"><div class="card-stage">Draw</div></div>
@@ -305,7 +319,30 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
 
 </div>
 
+<div class="popup-overlay" id="popup">
+  <div class="popup-backdrop" onclick="closePopup()"></div>
+  <div class="popup">
+    <button class="popup-close" onclick="closePopup()">×</button>
+    <div class="popup-title">Submit a feature request</div>
+    <div class="popup-sub">Tell us what you want to see next — pick whichever is easiest.</div>
+    <div class="popup-btns">
+      <a class="popup-btn popup-btn-x" href="https://x.com/decklabtcg" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        Tweet @decklabtcg
+      </a>
+      <a class="popup-btn popup-btn-email" href="mailto:hello@decklab.gg?subject=Feature%20Request" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+        Email us
+      </a>
+    </div>
+  </div>
+</div>
+
 <script>
+function openPopup(e){e.preventDefault();document.getElementById('popup').classList.add('open')}
+function closePopup(){document.getElementById('popup').classList.remove('open')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePopup()});
+
 const discardCards = [
   { name: 'Card database', desc: 'Built a robust, data-rich database covering every Standard-legal card.', icon: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>' },
   { name: 'LCS Pre-Beta', desc: 'Brought local card shops in early to test and shape the product.', icon: '<path d="M3 9l9-7 9 7"/><path d="M9 22V12h6v10"/><path d="M21 22V9"/><path d="M3 22V9"/>' },
