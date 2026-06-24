@@ -151,38 +151,41 @@ body{background:#0A0A0A;font-family:'Inter',sans-serif;min-height:100vh;display:
   .title{font-size:20px}
   .header{margin-bottom:14px}
 
-  /* Pull stadium out of absolute flow */
+  /* Stadium: pull into flow at top */
   .stadium-float{position:static;margin-bottom:14px;justify-content:flex-start;gap:10px}
-  .stadium-float .tcg-card{width:100px;flex-shrink:0}
+  .stadium-float .tcg-card{width:75px;flex-shrink:0}
   .stadium-label{display:flex;flex-direction:column;justify-content:center}
 
-  /* Side column right, aligned with active spot */
-  .mat-grid{grid-template-columns:1fr 108px;gap:10px}
-  .mat-side{padding-top:34px;gap:14px;align-items:center}
+  /* Two-column grid: main | narrow side */
+  .mat-grid{grid-template-columns:1fr 115px;gap:10px}
 
-  /* Hide text labels — just show the tucked cards */
+  /* Side column: draw on top, discard below — pushed to active spot level */
+  .mat-side{padding-top:110px;gap:12px;align-items:center}
   .side-box .zone-label-row,.side-box .zone-sub{display:none}
 
-  /* All cards same size */
-  .bench-slot,.card-slot > div,.deck-slot,.discard-stack,.discard-card,.stadium-float .tcg-card{width:100px}
+  /* All cards 75px */
+  .bench-slot,.card-slot > div,.discard-card,.stadium-float .tcg-card{width:75px}
   .card-slot{display:flex;justify-content:center}
-  .bench-row{gap:10px;flex-wrap:nowrap}
-  .discard-stack{height:140px}
+  .bench-row{gap:8px;flex-wrap:nowrap}
 
-  /* Tuck and rotate like real card piles */
-  .deck-slot{transform:rotate(-6deg);transform-origin:bottom center}
-  .discard-stack{transform:rotate(4deg);transform-origin:bottom center}
+  /* Deck: 90° perpendicular */
+  .deck-slot{width:75px;transform:rotate(90deg);transform-origin:center center}
+
+  /* Discard: 90° perpendicular, tap to fan out upright */
+  .discard-stack{width:75px;height:105px;transform:rotate(90deg);transform-origin:center center}
   .discard-stack.expanded{transform:rotate(0deg)}
-  .discard-stack:hover .discard-card:nth-child(1){transform:none !important;left:0 !important}
-  .discard-stack:hover .discard-card:nth-child(2){transform:none !important;left:0 !important}
-  .discard-stack:hover .discard-card:nth-child(3){transform:none !important;left:0 !important}
-  .discard-stack.expanded .discard-card:nth-child(1){transform:rotate(-5deg) translateY(-2px) !important;left:-90px !important;z-index:1}
-  .discard-stack.expanded .discard-card:nth-child(2){transform:rotate(-2deg) translateY(-8px) !important;left:-45px !important;z-index:2}
-  .discard-stack.expanded .discard-card:nth-child(3){transform:rotate(0deg) !important;left:0 !important;z-index:3}
-  .discard-card:hover{transform:none !important}
 
-  /* Hand fan: scale down proportionally */
-  .hand-row{transform:scale(0.82);transform-origin:center top;height:126px;margin-bottom:-12px}
+  /* Suppress hover on mobile — only tap/expanded works */
+  .discard-stack:hover .discard-card:nth-child(1){transform:rotate(0deg) !important;left:0 !important}
+  .discard-stack:hover .discard-card:nth-child(2){transform:rotate(0deg) !important;left:0 !important}
+  .discard-stack:hover .discard-card:nth-child(3){transform:rotate(0deg) !important;left:0 !important}
+  .discard-card:hover{transform:none !important}
+  .discard-stack.expanded .discard-card:nth-child(1){transform:rotate(-5deg) translateY(-2px) !important;left:-80px !important;z-index:1}
+  .discard-stack.expanded .discard-card:nth-child(2){transform:rotate(-2deg) translateY(-8px) !important;left:-40px !important;z-index:2}
+  .discard-stack.expanded .discard-card:nth-child(3){transform:rotate(0deg) !important;left:0 !important;z-index:3}
+
+  /* Hand fan: scale down */
+  .hand-row{transform:scale(0.65);transform-origin:center top;height:100px;margin-bottom:-18px}
 }
 
 .popup-overlay{display:none;position:fixed;inset:0;z-index:100;align-items:center;justify-content:center}
