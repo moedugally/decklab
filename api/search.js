@@ -1198,7 +1198,7 @@ export default async function handler(req, res) {
       headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify([
         ['LPUSH', 'query_log', entry],
-        ['LTRIM', 'query_log', 0, 4999]  // keep last 5000
+        ['LTRIM', 'query_log', 0, 49999]  // keep last 50000
       ])
     }).catch(() => {});
   }
