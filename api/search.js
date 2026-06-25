@@ -1184,6 +1184,9 @@ export default async function handler(req, res) {
   if (!query) return res.status(400).json({ error: 'Missing query' });
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'API key not configured' });
 
+  const BLOCKLIST = /\b(porn|fuck|shit|rape|nigga|nigger|faggot|cunt|bitch|asshole|dick|pussy|cock|slut|whore)\b/i;
+  if (BLOCKLIST.test(query.trim())) return res.status(400).json({ error: 'Invalid query' });
+
   const typeFilter = req.body.type || '';
   const cacheKey = `v91:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
