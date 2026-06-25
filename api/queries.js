@@ -1,12 +1,7 @@
 const KV_URL   = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const SECRET   = process.env.ADMIN_SECRET;
 
 export default async function handler(req, res) {
-  if (!SECRET || req.query.secret !== SECRET) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-
   if (!KV_URL || !KV_TOKEN) {
     return res.status(500).json({ error: 'KV not configured' });
   }
