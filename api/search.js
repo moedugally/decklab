@@ -1188,7 +1188,7 @@ export default async function handler(req, res) {
   if (BLOCKLIST.test(query.trim())) return res.status(400).json({ error: 'Invalid query' });
 
   const typeFilter = req.body.type || '';
-  const cacheKey = `v91:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
+  const cacheKey = `v92:search:standard:${typeFilter.toLowerCase()}:${query.trim().toLowerCase()}`;
 
   // Log query asynchronously — fire and forget, never blocks search
   if (KV_URL && KV_TOKEN) {
