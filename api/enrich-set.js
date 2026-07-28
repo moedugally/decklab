@@ -114,21 +114,29 @@ async function _handler(req, res) {
     });
   }
 
-  const setId    = req.query.set      || 'me5';
-  // page/pageSize refer to TCG API pagination — each call fetches one page directly
-  const page     = parseInt(req.query.page     || '1', 10);
-  const pageSize = parseInt(req.query.pageSize || '6',  10);
+  // Accept cards as POST body (pre-fetched client-side) to avoid TCG API issues from Vercel IPs
+  let slice, total;
+  if (req.method === 'POST' && req.body?.cards?.length) {
+    slice = req.body.cards;
+    total = req.body.total || slice.length;
+  } else {
+    // Fallback: fetch from TCG API
+    const setId    = req.query.set      || 'me5';
+    const page     = parseInt(req.query.page     || '1', 10);
+    const pageSize = parseInt(req.query.pageSize || '6',  10);
+    const tcgKey   = process.env.POKEMONTCG_API_KEY || '';
+    const tcgUrl   = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`set.id:${setId}`)}&pageSize=${pageSize}&page=${page}`;
+    const tcgHeaders = { 'User-Agent': 'decklab/1.0' };
+    if (tcgKey) tcgHeaders['X-Api-Key'] = tcgKey;
+    const tcgRes = await fetch(tcgUrl, { headers: tcgHeaders });
+    const tcgRaw = await tcgRes.text();
+    if (!tcgRaw || !tcgRes.ok) return res.status(502).json({ error: 'TCG API error', status: tcgRes.status, body: tcgRaw?.slice(0, 200) });
+    const tcgData = JSON.parse(tcgRaw);
+    slice = tcgData.data || [];
+    total = tcgData.totalCount || 0;
+  }
 
-  // 1. Fetch one page of cards for this set directly from TCG API
-  const tcgUrl = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`set.id:${setId}`)}&pageSize=${pageSize}&page=${page}`;
-  const tcgRes  = await fetch(tcgUrl, { headers: { 'User-Agent': 'decklab/1.0' } });
-  const tcgRaw  = await tcgRes.text();
-  if (!tcgRaw) return res.status(502).json({ error: 'TCG API returned empty body', status: tcgRes.status });
-  const tcgData = JSON.parse(tcgRaw);
-  const slice   = tcgData.data || [];
-  const total   = tcgData.totalCount || 0;
-
-  if (!slice.length) return res.json({ done: true, total, page, processed: 0 });
+  if (!slice.length) return res.json({ done: true, total, processed: 0 });
 
   // 2. Enrich with Claude
   const summaries = slice.map(c => ({ id: c.id, text: cardText(c) }));
