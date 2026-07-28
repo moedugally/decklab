@@ -120,9 +120,11 @@ async function _handler(req, res) {
   const pageSize = parseInt(req.query.pageSize || '6',  10);
 
   // 1. Fetch one page of cards for this set directly from TCG API
-  const tcgUrl = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`set.id:${setId}`)}&pageSize=${pageSize}&page=${page}&orderBy=number`;
+  const tcgUrl = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`set.id:${setId}`)}&pageSize=${pageSize}&page=${page}`;
   const tcgRes  = await fetch(tcgUrl, { headers: { 'User-Agent': 'decklab/1.0' } });
-  const tcgData = await tcgRes.json();
+  const tcgRaw  = await tcgRes.text();
+  if (!tcgRaw) return res.status(502).json({ error: 'TCG API returned empty body', status: tcgRes.status });
+  const tcgData = JSON.parse(tcgRaw);
   const slice   = tcgData.data || [];
   const total   = tcgData.totalCount || 0;
 
