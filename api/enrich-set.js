@@ -172,9 +172,8 @@ async function _handler(req, res) {
   const upsertData = await upsertRes.json();
 
   return res.json({
-    done:      slice.length < pageSize,
+    done:      false,
     total,
-    page,
     processed: slice.length,
     enriched:  Object.keys(descriptions).length,
     upsert:    upsertData,
