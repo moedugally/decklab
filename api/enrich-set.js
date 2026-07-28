@@ -97,6 +97,11 @@ function cardToVector(card, enrichedDesc) {
 }
 
 export default async function handler(req, res) {
+  try { return await _handler(req, res); }
+  catch (e) { return res.status(500).json({ error: e.message, stack: e.stack?.split('\n').slice(0,5) }); }
+}
+
+async function _handler(req, res) {
   if (req.query.secret !== SECRET) return res.status(401).json({ error: 'Unauthorized' });
 
   // Smoke test: just confirm env vars are present
