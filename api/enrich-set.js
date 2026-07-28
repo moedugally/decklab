@@ -99,6 +99,16 @@ function cardToVector(card, enrichedDesc) {
 export default async function handler(req, res) {
   if (req.query.secret !== SECRET) return res.status(401).json({ error: 'Unauthorized' });
 
+  // Smoke test: just confirm env vars are present
+  if (req.query.ping) {
+    return res.json({
+      ok: true,
+      hasAnthropicKey: !!ANTHROPIC_KEY,
+      hasVectorUrl: !!VECTOR_URL,
+      hasVectorToken: !!VECTOR_TOKEN,
+    });
+  }
+
   const setId    = req.query.set      || 'me5';
   const page     = parseInt(req.query.page     || '0', 10);
   const pageSize = parseInt(req.query.pageSize || '6',  10);
