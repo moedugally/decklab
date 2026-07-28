@@ -110,17 +110,17 @@ export default async function handler(req, res) {
   }
 
   const setId    = req.query.set      || 'me5';
-  const page     = parseInt(req.query.page     || '0', 10);
+  // page/pageSize refer to TCG API pagination — each call fetches one page directly
+  const page     = parseInt(req.query.page     || '1', 10);
   const pageSize = parseInt(req.query.pageSize || '6',  10);
 
-  // 1. Fetch all cards for this set
-  const tcgUrl = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`set.id:${setId}`)}&pageSize=${TCG_PAGE}&page=1`;
+  // 1. Fetch one page of cards for this set directly from TCG API
+  const tcgUrl = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(`set.id:${setId}`)}&pageSize=${pageSize}&page=${page}&orderBy=number`;
   const tcgRes  = await fetch(tcgUrl, { headers: { 'User-Agent': 'decklab/1.0' } });
   const tcgData = await tcgRes.json();
-  const allCards = tcgData.data || [];
+  const slice   = tcgData.data || [];
+  const total   = tcgData.totalCount || 0;
 
-  const total = allCards.length;
-  const slice = allCards.slice(page * pageSize, (page + 1) * pageSize);
   if (!slice.length) return res.json({ done: true, total, page, processed: 0 });
 
   // 2. Enrich with Claude
@@ -157,7 +157,7 @@ export default async function handler(req, res) {
   const upsertData = await upsertRes.json();
 
   return res.json({
-    done:      (page + 1) * pageSize >= total,
+    done:      slice.length < pageSize,
     total,
     page,
     processed: slice.length,
